@@ -63,7 +63,7 @@
       "index.hero.critical.none": "Aucun critique / haut en file",
       "index.hero.fleet.breakdown": "{inv} inventaire · {online} parc en ligne",
       "index.hero.fleet.empty": "Ajoutez inventaire ou appareils pour suivre la sante",
-      "index.hero.focus.title.backlog": "Arriere",
+      "index.hero.focus.title.backlog": "Retards SLA",
       "index.hero.focus.title.critical_queue": "File critique",
       "index.hero.focus.title.assignments": "Affectations",
       "index.hero.focus.title.queue": "File",
