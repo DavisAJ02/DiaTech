@@ -42,10 +42,10 @@
 <script src="data.js"></script>
 <script src="i18n.js"></script>
 <script src="env-public.js"></script>
+<script src="role-ui.js"></script>
 <script src="auth.js"></script>
 <script src="data-sync.js"></script>
 <script src="api-client.js"></script>
-<script>void Auth.guard().catch(function (e) { console.error(e); });</script>
 
 <aside class="sidebar">
   <div class="sidebar-logo">
@@ -308,9 +308,31 @@ function apiErrorUserMessage(res, fallbackLabel) {
   return `${fallbackLabel} (HTTP ${res.status}).`;
 }
 
+async function ticketsRlsMode() {
+  return (
+    typeof ApiClient !== 'undefined' &&
+    ApiClient.shouldUseTicketsRls &&
+    (await ApiClient.shouldUseTicketsRls())
+  );
+}
+
 async function hydrateTicketsFromApi() {
   if (typeof ApiClient === 'undefined') return;
   const localTickets = Array.isArray(DB.tickets) ? DB.tickets.slice() : [];
+
+  if (await ticketsRlsMode()) {
+    const res = await ApiClient.getTicketsRls();
+    if (res.ok && Array.isArray(res.data)) {
+      const { normalized } = ensureTicketDateFields(res.data);
+      syncTicketsState(normalized);
+      return;
+    }
+    if (!res.ok) {
+      console.warn('[DiaTech] tickets-rls:', res.status, res.data);
+    }
+    return;
+  }
+
   const remote = await ApiClient.getTickets();
   if (!Array.isArray(remote)) return;
   if (remote.length === 0 && localTickets.length > 0) {
@@ -333,6 +355,11 @@ async function hydrateTicketsFromApi() {
 
 function fillAssigneeSelect() {
   const sel = document.getElementById('et-agent');
+  if (!sel) return;
+  if (typeof RoleUi !== 'undefined' && !RoleUi.canAssignTickets()) {
+    sel.innerHTML = '<option value="">—</option>';
+    return;
+  }
   const users = getAssignableUsers();
   sel.innerHTML =
     '<option value="">Unassigned</option>' +
@@ -407,7 +434,11 @@ function statusBadge(status) {
 }
 
 function assigneeCell(assignedUserId) {
+  const canAssign = typeof RoleUi === 'undefined' || RoleUi.canAssignTickets();
   if (assignedUserId == null || assignedUserId === '') {
+    if (!canAssign) {
+      return '<span class="ticket-assign-placeholder" style="color:var(--text-muted);font-size:12px">—</span>';
+    }
     return `<button type="button" class="assign-btn" onclick="this.textContent='Assigned ✓';this.style.background='#10b981';this.disabled=true">Assigner</button>`;
   }
   const u = getUserById(assignedUserId);
@@ -490,9 +521,20 @@ function openEditTicket(id) {
   document.getElementById('et-id').value = String(id);
   document.getElementById('et-title').value = t.title;
   document.getElementById('et-priority').value = t.priority;
-  document.getElementById('et-status').value = t.status || 'open';
+  const etStatus = document.getElementById('et-status');
+  etStatus.value = t.status || 'open';
+  const canStatus = typeof RoleUi === 'undefined' || RoleUi.canUpdateTicketStatus();
+  etStatus.disabled = !canStatus;
+  etStatus.title = canStatus ? '' : 'Seuls agent et admin peuvent modifier le statut.';
+  fillAssigneeSelect();
   document.getElementById('et-agent').value =
     t.assignedUserId != null && getUserById(t.assignedUserId) ? String(t.assignedUserId) : '';
+  const assignRow = document.getElementById('et-agent')?.closest('.form-row');
+  const canAssign = typeof RoleUi === 'undefined' || RoleUi.canAssignTickets();
+  if (assignRow) {
+    assignRow.hidden = !canAssign;
+    assignRow.style.display = canAssign ? '' : 'none';
+  }
   const etDept = document.getElementById('et-department');
   if (etDept) {
     const dn = String(t.department || '').trim();
@@ -511,9 +553,17 @@ window.saveEditTicket = async function() {
   const errEl = document.getElementById('edit-form-error');
   errEl.textContent = '';
   const id = Number(document.getElementById('et-id').value);
+  const t = DB.tickets.find((x) => x.id === id);
+  if (!t) {
+    errEl.textContent = 'Ticket not found.';
+    return;
+  }
   const title = document.getElementById('et-title').value.trim();
   const priority = document.getElementById('et-priority').value;
-  const status = document.getElementById('et-status').value;
+  const canUpdateStatus = typeof RoleUi === 'undefined' || RoleUi.canUpdateTicketStatus();
+  const status = canUpdateStatus
+    ? document.getElementById('et-status').value
+    : t.status || 'open';
   const agentVal = document.getElementById('et-agent').value;
 
   if (!title) {
@@ -528,22 +578,21 @@ window.saveEditTicket = async function() {
     errEl.textContent = 'Please select a status.';
     return;
   }
-  let assignedUserId = null;
-  if (agentVal !== '') {
-    const uid = Number(agentVal);
-    const assignable = getAssignableUsers().some((u) => u.id === uid);
-    if (!assignable || !getUserById(uid)) {
-      errEl.textContent = 'Please select a valid user.';
-      return;
+
+  let assignedUserId = t.assignedUserId;
+  if (typeof RoleUi !== 'undefined' && RoleUi.canAssignTickets()) {
+    assignedUserId = null;
+    if (agentVal !== '') {
+      const uid = Number(agentVal);
+      const assignable = getAssignableUsers().some((u) => u.id === uid);
+      if (!assignable || !getUserById(uid)) {
+        errEl.textContent = 'Please select a valid user.';
+        return;
+      }
+      assignedUserId = uid;
     }
-    assignedUserId = uid;
   }
 
-  const t = DB.tickets.find(x => x.id === id);
-  if (!t) {
-    errEl.textContent = 'Ticket not found.';
-    return;
-  }
   const deptVal = document.getElementById('et-department')?.value?.trim() || '';
   const prev = {
     title: t.title,
@@ -566,15 +615,41 @@ window.saveEditTicket = async function() {
   }
   if (!t.createdAt) t.createdAt = isoNow();
 
-  if (typeof ApiClient !== 'undefined' && ApiClient.upsertTicketWithResult) {
-    const res = await ApiClient.upsertTicketWithResult(t);
-    if (!res.ok) {
-      Object.assign(t, prev);
-      errEl.textContent = apiErrorUserMessage(res, 'Save failed');
-      return;
+  const useRls = await ticketsRlsMode();
+  let res;
+  if (useRls && ApiClient.upsertTicketRlsWithResult) {
+    const body = {
+      id: t.id,
+      title: t.title,
+      priority: t.priority,
+      status: t.status,
+      assignedUserId: t.assignedUserId,
+      department: t.department,
+      resolvedAt: t.resolvedAt,
+      createdAt: t.createdAt,
+      sla: t.sla,
+      slaClass: t.slaClass,
+    };
+    if (typeof RoleUi !== 'undefined' && RoleUi.canAssignTickets()) {
+      if (agentVal === '') body.assigneeCleared = true;
+      else {
+        const au = getUserById(Number(agentVal));
+        if (au && au.email) body.assigneeEmail = String(au.email).trim();
+      }
     }
+    res = await ApiClient.upsertTicketRlsWithResult(body);
+  } else if (typeof ApiClient !== 'undefined' && ApiClient.upsertTicketWithResult) {
+    res = await ApiClient.upsertTicketWithResult(t);
   } else if (typeof ApiClient !== 'undefined') {
     await ApiClient.upsertTicket(t);
+    res = { ok: true };
+  } else {
+    res = { ok: true };
+  }
+  if (res && !res.ok) {
+    Object.assign(t, prev);
+    errEl.textContent = apiErrorUserMessage(res, 'Save failed');
+    return;
   }
 
   if (typeof window.diatechNotifyDataChanged === 'function') window.diatechNotifyDataChanged('tickets');
@@ -612,14 +687,21 @@ window.submitNewTicket = async function() {
     resolvedAt: null
   };
 
-  if (typeof ApiClient !== 'undefined' && ApiClient.upsertTicketWithResult) {
-    const res = await ApiClient.upsertTicketWithResult(newTicket);
-    if (!res.ok) {
-      if (errEl) errEl.textContent = apiErrorUserMessage(res, 'Create failed');
-      return;
-    }
+  const useRls = await ticketsRlsMode();
+  let res;
+  if (useRls && ApiClient.upsertTicketRlsWithResult) {
+    res = await ApiClient.upsertTicketRlsWithResult(newTicket);
+  } else if (typeof ApiClient !== 'undefined' && ApiClient.upsertTicketWithResult) {
+    res = await ApiClient.upsertTicketWithResult(newTicket);
   } else if (typeof ApiClient !== 'undefined') {
     await ApiClient.upsertTicket(newTicket);
+    res = { ok: true };
+  } else {
+    res = { ok: true };
+  }
+  if (res && !res.ok) {
+    if (errEl) errEl.textContent = apiErrorUserMessage(res, 'Create failed');
+    return;
   }
 
   ticketsStore.unshift(newTicket);
@@ -656,17 +738,23 @@ function applyTicketUrlFilters() {
   }
 }
 
-fillAssigneeSelect();
-fillDepartmentSelects();
-applyTicketUrlFilters();
-void hydrateTicketsFromApi().then(() => {
+void (async function bootTicketsPage() {
+  try {
+    await Auth.guard();
+  } catch (e) {
+    console.error(e);
+  }
+  fillAssigneeSelect();
+  fillDepartmentSelects();
+  applyTicketUrlFilters();
+  await hydrateTicketsFromApi();
   fillDepartmentSelects();
   applyTicketUrlFilters();
   renderTickets();
-});
+  if (typeof Auth !== 'undefined' && Auth.enhanceUI) Auth.enhanceUI();
+})();
 document.getElementById('nt-submit')?.addEventListener('click', () => void submitNewTicket());
 document.getElementById('et-submit')?.addEventListener('click', () => void saveEditTicket());
-Auth.enhanceUI();
 </script>
 </body>
 </html>

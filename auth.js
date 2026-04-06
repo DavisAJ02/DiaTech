@@ -85,6 +85,15 @@
   }
 
   function hasRole(role) {
+    const r = String(role || '').toLowerCase();
+    if (
+      (r === 'admin' || r === 'agent' || r === 'user') &&
+      typeof global.RoleUi !== 'undefined' &&
+      global.RoleUi.syncCurrentUserRole
+    ) {
+      global.RoleUi.syncCurrentUserRole();
+      return global.RoleUi.hasRole(r);
+    }
     const u = currentUser();
     return !!(u && u.roles && u.roles.includes(role));
   }
@@ -174,17 +183,24 @@
       el.hidden = !hasRole('admin');
     });
 
-    document.querySelectorAll('.sidebar-nav a[href$=".html"]').forEach((el) => {
-      if (hasRole('admin')) {
-        el.hidden = false;
-        return;
-      }
-      const href = el.getAttribute('href') || '';
-      const file = href.split('/').pop().toLowerCase();
-      if (file && typeof userCanAccessPage === 'function') {
-        el.hidden = !userCanAccessPage(file, u);
-      }
-    });
+    if (typeof global.RoleUi !== 'undefined' && global.RoleUi.applySidebarNavVisibility) {
+      global.RoleUi.applySidebarNavVisibility();
+    } else {
+      document.querySelectorAll('.sidebar-nav a[href$=".html"]').forEach((el) => {
+        if (hasRole('admin')) {
+          el.hidden = false;
+          el.style.display = '';
+          return;
+        }
+        const href = el.getAttribute('href') || '';
+        const file = href.split('/').pop().toLowerCase();
+        if (file && typeof userCanAccessPage === 'function') {
+          const ok = userCanAccessPage(file, u);
+          el.hidden = !ok;
+          el.style.display = ok ? '' : 'none';
+        }
+      });
+    }
 
     document.querySelectorAll('.auth-logout-btn').forEach((btn) => {
       btn.addEventListener('click', (e) => {

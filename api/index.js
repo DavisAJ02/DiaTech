@@ -64,6 +64,87 @@ function getSupabase() {
   return supabase;
 }
 
+/** Clé anon / publishable JWT — requise pour les routes /api/tickets-rls (RLS avec JWT utilisateur). */
+function getSupabaseAnonKey() {
+  return envTrim("SUPABASE_ANON_KEY") || envTrim("NEXT_PUBLIC_SUPABASE_ANON_KEY");
+}
+
+/** Client service_role uniquement (RPC, lecture profiles admin). */
+function getSupabaseServiceOnly() {
+  const url = envTrim("SUPABASE_URL");
+  const key = envTrim("SUPABASE_SERVICE_ROLE_KEY");
+  if (!url || !key) return null;
+  return createClient(url, key, {
+    auth: { persistSession: false, autoRefreshToken: false },
+  });
+}
+
+function createUserScopedSupabaseClient(authHeader) {
+  const url = envTrim("SUPABASE_URL");
+  const anon = getSupabaseAnonKey();
+  if (!url || !anon) return null;
+  return createClient(url, anon, {
+    global: { headers: { Authorization: authHeader } },
+    auth: { persistSession: false, autoRefreshToken: false },
+  });
+}
+
+function stripTicketTransportFields(body) {
+  const t = { ...(body || {}) };
+  delete t.assigneeEmail;
+  delete t.assigneeCleared;
+  delete t.createdByAuthId;
+  delete t.assignedToAuthId;
+  return t;
+}
+
+function diaTicketRowToAppTicket(row) {
+  const p = row.payload && typeof row.payload === "object" ? { ...row.payload } : {};
+  if (row.id != null) p.id = row.id;
+  return p;
+}
+
+async function resolveAssigneeUuidFromEmail(serviceClient, email) {
+  if (!serviceClient || !email || !String(email).trim()) return null;
+  const { data, error } = await serviceClient.rpc("diatech_auth_id_by_email", {
+    em: String(email).trim(),
+  });
+  if (error) {
+    console.warn("[tickets-rls] diatech_auth_id_by_email:", error.message || error);
+    return null;
+  }
+  return data || null;
+}
+
+async function profileIsAdmin(serviceClient, userId) {
+  if (!serviceClient || !userId) return false;
+  const { data } = await serviceClient.from("profiles").select("role").eq("id", userId).maybeSingle();
+  return data?.role === "admin";
+}
+
+/** Met à jour app_state.tickets depuis dia_tickets (service_role) pour /api/dashboard/stats et le reste. */
+async function syncAppStateTicketsFromDiaIfEnabled() {
+  if (String(envTrim("TICKETS_DUAL_WRITE_APP_STATE") || "").toLowerCase() !== "1") return;
+  const svc = getSupabaseServiceOnly();
+  if (!svc) return;
+  const { data: rows, error } = await svc
+    .from("dia_tickets")
+    .select("id,payload")
+    .order("id", { ascending: true });
+  if (error) {
+    console.warn("[tickets-rls] sync app_state:", error.message || error);
+    return;
+  }
+  const tickets = (rows || []).map((r) => diaTicketRowToAppTicket(r));
+  try {
+    const db = await readDb();
+    db.tickets = tickets;
+    await writeDb(db);
+  } catch (e) {
+    console.warn("[tickets-rls] writeDb after sync:", e?.message || e);
+  }
+}
+
 function sanitizeDb(parsed) {
   return {
     inventory: Array.isArray(parsed.inventory) ? parsed.inventory : [],
@@ -450,6 +531,125 @@ app.post("/api/consumables/:id/movements", async (req, res) => {
 app.get("/api/dashboard/stats", async (_req, res) => {
   const db = await readDb();
   res.json(computeStats(db));
+});
+
+/** Tickets avec RLS Supabase (JWT utilisateur → politiques sur public.dia_tickets). */
+app.get("/api/tickets-rls", async (req, res) => {
+  const authHeader = req.headers.authorization;
+  if (!authHeader || !String(authHeader).toLowerCase().startsWith("bearer ")) {
+    return res.status(401).json({ error: "missing_bearer" });
+  }
+  const userClient = createUserScopedSupabaseClient(authHeader);
+  if (!userClient) {
+    return res.status(503).json({ error: "tickets_rls_misconfigured", detail: "SUPABASE_URL + SUPABASE_ANON_KEY" });
+  }
+  const { data, error } = await userClient
+    .from("dia_tickets")
+    .select("id,payload,created_by,assigned_to")
+    .order("id", { ascending: true });
+  if (error) return res.status(400).json({ error: error.message, code: error.code });
+  res.json((data || []).map(diaTicketRowToAppTicket));
+});
+
+app.post("/api/tickets-rls", async (req, res) => {
+  const authHeader = req.headers.authorization;
+  if (!authHeader || !String(authHeader).toLowerCase().startsWith("bearer ")) {
+    return res.status(401).json({ error: "missing_bearer" });
+  }
+  const token = String(authHeader).replace(/^Bearer\s+/i, "").trim();
+  const url = envTrim("SUPABASE_URL");
+  const anon = getSupabaseAnonKey();
+  if (!url || !anon) {
+    return res.status(503).json({ error: "tickets_rls_misconfigured", detail: "SUPABASE_URL + SUPABASE_ANON_KEY" });
+  }
+
+  const anonAuth = createClient(url, anon, {
+    auth: { persistSession: false, autoRefreshToken: false },
+  });
+  const { data: userData, error: authErr } = await anonAuth.auth.getUser(token);
+  if (authErr || !userData?.user) {
+    return res.status(401).json({ error: "invalid_token" });
+  }
+  const uid = userData.user.id;
+
+  const svc = getSupabaseServiceOnly();
+  const isAdmin = svc ? await profileIsAdmin(svc, uid) : false;
+
+  const body = req.body || {};
+  const id = Number(body.id);
+  if (!Number.isFinite(id)) return res.status(400).json({ error: "id required (number)" });
+
+  const userClient = createUserScopedSupabaseClient(authHeader);
+  const { data: existing, error: exErr } = await userClient
+    .from("dia_tickets")
+    .select("id,payload,created_by,assigned_to")
+    .eq("id", id)
+    .maybeSingle();
+  if (exErr) return res.status(400).json({ error: exErr.message });
+
+  const base = existing?.payload && typeof existing.payload === "object" ? { ...existing.payload } : {};
+  const merged = { ...base, ...stripTicketTransportFields(body) };
+  merged.id = id;
+
+  let created_by = existing ? existing.created_by : uid;
+  let assigned_to = existing ? existing.assigned_to : null;
+
+  if (isAdmin && svc) {
+    if (body.assigneeCleared === true || body.assigneeCleared === "true") {
+      assigned_to = null;
+      merged.assignedUserId = null;
+    } else if (body.assigneeEmail != null && String(body.assigneeEmail).trim() !== "") {
+      const ru = await resolveAssigneeUuidFromEmail(svc, body.assigneeEmail);
+      if (ru) assigned_to = ru;
+    } else if (body.assignedToAuthId !== undefined && body.assignedToAuthId !== null && body.assignedToAuthId !== "") {
+      assigned_to = String(body.assignedToAuthId);
+    } else if (
+      body.assigneeEmail === "" &&
+      (body.assignedUserId === null || body.assignedUserId === undefined || body.assignedUserId === "")
+    ) {
+      assigned_to = null;
+      merged.assignedUserId = null;
+    }
+  } else if (existing) {
+    assigned_to = existing.assigned_to;
+  }
+
+  if (!existing) {
+    const row = { id, payload: merged, created_by: uid, assigned_to };
+    const { error: insErr } = await userClient.from("dia_tickets").insert(row);
+    if (insErr) return res.status(400).json({ error: insErr.message, code: insErr.code });
+    await syncAppStateTicketsFromDiaIfEnabled();
+    return res.json({ ok: true });
+  }
+
+  const { error: upErr } = await userClient
+    .from("dia_tickets")
+    .update({
+      payload: merged,
+      assigned_to,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", id);
+  if (upErr) return res.status(400).json({ error: upErr.message, code: upErr.code });
+  await syncAppStateTicketsFromDiaIfEnabled();
+  return res.json({ ok: true });
+});
+
+app.delete("/api/tickets-rls/:id", async (req, res) => {
+  const authHeader = req.headers.authorization;
+  if (!authHeader || !String(authHeader).toLowerCase().startsWith("bearer ")) {
+    return res.status(401).json({ error: "missing_bearer" });
+  }
+  const userClient = createUserScopedSupabaseClient(authHeader);
+  if (!userClient) {
+    return res.status(503).json({ error: "tickets_rls_misconfigured" });
+  }
+  const id = Number(req.params.id);
+  if (!Number.isFinite(id)) return res.status(400).json({ error: "invalid id" });
+  const { error } = await userClient.from("dia_tickets").delete().eq("id", id);
+  if (error) return res.status(400).json({ error: error.message, code: error.code });
+  await syncAppStateTicketsFromDiaIfEnabled();
+  res.json({ ok: true });
 });
 
 app.get("/api/tickets", async (_req, res) => {

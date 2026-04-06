@@ -259,7 +259,7 @@ const DB = {
     {
       id: 1,
       username: "papy.matala",
-      email: "papy.matala@nexusops.example",
+      email: "papy.matala@cmd.local",
       name: "Papy",
       initials: "PY",
       avatarColor: "#8b5cf6",
@@ -272,7 +272,7 @@ const DB = {
     {
       id: 2,
       username: "guy-roger.kabongo",
-      email: "guy-roger.kabongo@nexusops.example",
+      email: "guy-roger.kabongo@cmd.local",
       name: "Guy-Roger",
       initials: "GR",
       avatarColor: "#3b82f6",
@@ -284,7 +284,7 @@ const DB = {
     {
       id: 3,
       username: "david-adrien.ntumba",
-      email: "david-adrien.ntumba@nexusops.example",
+      email: "david-adrien.ntumba@cmd.local",
       name: "David-Adrien",
       initials: "DA",
       avatarColor: "#10b981",
@@ -296,7 +296,7 @@ const DB = {
     {
       id: 4,
       username: "zied.benali",
-      email: "zied.benali@nexusops.example",
+      email: "zied.benali@cmd.local",
       name: "Zied",
       initials: "ZI",
       avatarColor: "#f59e0b",
@@ -666,13 +666,44 @@ function getEffectiveAllowedPages(user) {
   return [...set];
 }
 
+const PRIMARY_PROFILE_ROLES = new Set(["admin", "agent", "user"]);
+
+/**
+ * Rôle applicatif unique pour RBAC UI / routes (Supabase profiles.role ou compte démo).
+ */
+function getPrimaryProfileRole() {
+  if (DB.session && DB.session.profileRole) {
+    const r = String(DB.session.profileRole).toLowerCase();
+    if (PRIMARY_PROFILE_ROLES.has(r)) return r;
+  }
+  const uid = DB.session && DB.session.currentUserId;
+  const u =
+    uid != null && typeof getUserById === "function" ? getUserById(uid) : null;
+  if (u && Array.isArray(u.roles)) {
+    if (u.roles.includes("admin")) return "admin";
+    if (u.roles.includes("agent")) return "agent";
+  }
+  if (typeof window !== "undefined" && window.currentUserRole) {
+    const r = String(window.currentUserRole).toLowerCase();
+    if (PRIMARY_PROFILE_ROLES.has(r)) return r;
+  }
+  return "user";
+}
+
 function userCanAccessPage(filename, user) {
   if (!user || !user.active) return false;
-  if (user.roles && user.roles.includes("admin")) return true;
-  const allowed = getEffectiveAllowedPages(user);
-  if (allowed === null) return true;
+  const pr = getPrimaryProfileRole();
+  if (pr === "admin") return true;
   const f = String(filename).toLowerCase();
-  return allowed.includes(f);
+  if (pr === "agent") {
+    return new Set(["index.html", "tickets.html", "devices.html"]).has(f);
+  }
+  if (pr === "user") {
+    if (["inventory.html", "it-analytics.html", "settings.html"].includes(f))
+      return false;
+    return true;
+  }
+  return false;
 }
 
 function getUserById(userId) {

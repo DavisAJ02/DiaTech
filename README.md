@@ -92,10 +92,24 @@ Run `supabase/schema.sql` in your Supabase SQL Editor.
 - Le formulaire de connexion tente d’abord Supabase si la config est présente (identifiant = **email** ou `utilisateur@cmd.local`), sinon les comptes **démo** habituels.
 - Rôle global : `window.currentUserRole` après login ; repli **`user`** si profil absent ou invalide.
 
+### 1c) RLS sur tickets / devices / inventory / alertes (optionnel, avancé)
+- Exécuter **`supabase/schema_rls_entities.sql`** après `schema_profiles_rbac.sql`.
+- Exécuter **`supabase/rpc_diatech_auth_email.sql`** (RPC réservée **service_role** : résolution email → `auth.users.id` pour l’assignation côté API).
+- Crée les tables **`dia_tickets`**, **`dia_devices`**, **`dia_inventory`**, **`dia_alert_rules`** avec politiques basées sur **`public.profiles.role`** et **`auth.uid()`**.
+- Active aussi **RLS sur `app_state`** sans politique `authenticated` : pas d’accès direct au JSON avec le JWT utilisateur ; l’API **service role** continue de gérer `app_state` pour le reste des données.
+
+### 1d) Tickets protégés par RLS (flux implémenté dans le repo)
+1. **Migration des données** (une fois) : exécuter **`supabase/run_rls_tickets_pipeline.sql`** dans le SQL Editor (RPC + copie `app_state.tickets` → **`dia_tickets`**). Équivalent : **`rpc_diatech_auth_email.sql`** puis **`migrate_app_state_tickets_to_dia_tickets.sql`**.
+2. **Variables Vercel / `.env` pour l’API** : en plus de `SUPABASE_URL` et `SUPABASE_SERVICE_ROLE_KEY`, définir **`SUPABASE_ANON_KEY`** (clé **anon** JWT `eyJ…`, la même logique que le front — pas la service role).
+3. **Page Tickets** : si Supabase est configuré dans `env-public.js` **et** qu’une session existe (`Authorization` Bearer), l’app appelle **`GET/POST /api/tickets-rls`** (proxy JWT) au lieu de `/api/tickets` (service role / `app_state`). Désactiver : `window.__DIATECH_TICKETS_RLS = false`.
+4. **Assignation admin** : l’API résout l’email de l’agent (`data.js` → `DB.users[].email`) vers **Auth** via **`diatech_auth_id_by_email`**. Les comptes **Authentication** des agents doivent avoir **le même email** (dans le dépôt, les démo utilisent **`@cmd.local`**, ex. `papy.matala@cmd.local`).
+5. **Dashboard / stats** : le compteur tickets du **`/api/dashboard/stats`** lit encore **`app_state`**. Pour recopier `dia_tickets` → `app_state.tickets` après chaque changement (service role), définir **`TICKETS_DUAL_WRITE_APP_STATE=1`** sur Vercel.
+
 ### 2) Set Vercel environment variables
 In your Vercel project, add:
 - `SUPABASE_URL`
 - `SUPABASE_SERVICE_ROLE_KEY`
+- `SUPABASE_ANON_KEY` (JWT anon — requis pour **`/api/tickets-rls`** et RLS tickets)
 - (optional) `SUPABASE_APP_STATE_TABLE=app_state`
 
 ### 3) Deploy from GitHub

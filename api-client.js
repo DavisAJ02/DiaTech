@@ -39,6 +39,31 @@
 
   const API_BASE = resolveApiBase();
 
+  async function getSupabaseAuthHeaders() {
+    try {
+      var c = typeof window !== 'undefined' ? window.__diaTechSupabaseClient : null;
+      if (!c || !c.auth) return {};
+      var out = await c.auth.getSession();
+      var t = out && out.data && out.data.session && out.data.session.access_token;
+      if (!t) return {};
+      return { Authorization: 'Bearer ' + t };
+    } catch (_e) {
+      return {};
+    }
+  }
+
+  /** Tickets via public.dia_tickets + RLS (session Supabase + /api/tickets-rls). */
+  async function shouldUseTicketsRls() {
+    if (typeof window === 'undefined') return false;
+    if (window.__DIATECH_TICKETS_RLS === false) return false;
+    var p = window.__DIATECH_PUBLIC__;
+    var has =
+      Boolean(p && String(p.supabaseUrl || '').trim() && String(p.supabaseAnonKey || '').trim());
+    if (!has) return false;
+    var h = await getSupabaseAuthHeaders();
+    return Boolean(h.Authorization);
+  }
+
   function notifyMutation(path) {
     if (typeof window.diatechNotifyDataChanged !== "function") return;
     var reason =
@@ -101,6 +126,14 @@
     }
   }
 
+  async function requestWithResultAuth(path, options = {}) {
+    const auth = await getSupabaseAuthHeaders();
+    return requestWithResult(path, {
+      ...options,
+      headers: { ...auth, ...(options.headers || {}) },
+    });
+  }
+
   async function saveAppDataWithResult(payload) {
     try {
       const res = await fetch(`${API_BASE}/app-data`, {
@@ -134,6 +167,13 @@
     upsertTicketWithResult: (ticket) =>
       requestWithResult("/tickets", { method: "POST", body: JSON.stringify(ticket || {}) }),
     deleteTicket: (id) => request(`/tickets/${encodeURIComponent(String(id))}`, { method: "DELETE" }),
+
+    shouldUseTicketsRls,
+    getTicketsRls: () => requestWithResultAuth("/tickets-rls"),
+    upsertTicketRlsWithResult: (ticket) =>
+      requestWithResultAuth("/tickets-rls", { method: "POST", body: JSON.stringify(ticket || {}) }),
+    deleteTicketRls: (id) =>
+      requestWithResultAuth(`/tickets-rls/${encodeURIComponent(String(id))}`, { method: "DELETE" }),
 
     getDepartments: () => request("/departments"),
     upsertDepartment: (department) => request("/departments", { method: "POST", body: JSON.stringify(department || {}) }),

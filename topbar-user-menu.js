@@ -17,12 +17,20 @@
     return user.roles[0].charAt(0).toUpperCase() + user.roles[0].slice(1);
   }
 
+  function canOpenSettingsPage() {
+    var u = currentUser();
+    if (!u) return false;
+    if (typeof userCanAccessPage === 'function') return userCanAccessPage('settings.html', u);
+    return true;
+  }
+
   function menuMarkup() {
     var user = currentUser() || {};
     var name = user.name || tr("common.user.fallback_name", 'DiaTech user');
     var email = user.email || tr("common.user.fallback_signed_in", 'Signed in');
     var role = roleLabel(user);
-    return [
+    var settingsOk = canOpenSettingsPage();
+    var parts = [
       '<div class="user-dropdown-head">',
       '<div class="user-dropdown-identity">',
       '<div class="user-dropdown-avatar">' + (user.initials || 'DT') + '</div>',
@@ -33,11 +41,18 @@
       '</div>',
       '<div class="user-dropdown-role">' + role + '</div>',
       '</div>',
-      '<div class="user-dropdown-divider"></div>',
-      '<button type="button" class="dropdown-item profile" data-nav="settings.html#profile" role="menuitem"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg><span>' + tr("common.menu.profile", "Profile") + '</span></button>',
-      '<button type="button" class="dropdown-item settings" data-nav="settings.html#security" role="menuitem"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg><span>' + tr("common.menu.settings", "Settings") + '</span></button>',
+      '<div class="user-dropdown-divider"></div>'
+    ];
+    if (settingsOk) {
+      parts.push(
+        '<button type="button" class="dropdown-item profile" data-nav="settings.html#profile" role="menuitem"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg><span>' + tr("common.menu.profile", "Profile") + '</span></button>',
+        '<button type="button" class="dropdown-item settings" data-nav="settings.html#security" role="menuitem"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg><span>' + tr("common.menu.settings", "Settings") + '</span></button>'
+      );
+    }
+    parts.push(
       '<button type="button" class="dropdown-item logout" role="menuitem"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg><span>' + tr("common.menu.logout", "Log out") + '</span></button>'
-    ].join('');
+    );
+    return parts.join('');
   }
 
   function closeInlineMenus(except) {
