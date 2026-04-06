@@ -278,7 +278,14 @@ function syncTicketsState(list) {
 }
 
 function apiErrorUserMessage(res, fallbackLabel) {
-  if (res.status === 0) return 'Network error — check your connection and API URL.';
+  if (res.status === 0) {
+    const hint =
+      ' Si vous êtes sur le site en ligne, supprimez la clé localStorage « ti_api_base » si elle pointe vers localhost (F12 → Application → Stockage local).';
+    if (res.error && String(res.error).trim()) {
+      return 'Network error — ' + String(res.error).trim() + '.' + hint;
+    }
+    return 'Network error — vérifiez la connexion et l’URL de l’API.' + hint;
+  }
   const d = res.data;
   const apiMsg = d && (d.message || (typeof d.error === 'string' ? d.error : null));
   if (typeof apiMsg === 'string' && apiMsg.trim()) return apiMsg.trim();

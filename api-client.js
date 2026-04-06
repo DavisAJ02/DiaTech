@@ -3,10 +3,28 @@
     return String(url || "").trim().replace(/\/+$/, "");
   }
 
+  function isLocalApiHostUrl(url) {
+    const u = String(url || "").toLowerCase();
+    return (
+      u.startsWith("http://localhost") ||
+      u.startsWith("http://127.0.0.1") ||
+      u.startsWith("http://0.0.0.0")
+    );
+  }
+
+  function isPageOnDeployedHost() {
+    if (typeof window === "undefined" || !window.location) return false;
+    const host = String(window.location.hostname || "").toLowerCase();
+    return Boolean(host && host !== "localhost" && host !== "127.0.0.1" && host !== "0.0.0.0");
+  }
+
   function resolveApiBase() {
     const fromWindow = typeof window !== "undefined" ? window.__API_BASE__ : "";
     const fromStorage = typeof localStorage !== "undefined" ? localStorage.getItem("ti_api_base") : "";
-    const explicit = normalizeBase(fromWindow || fromStorage);
+    let explicit = normalizeBase(fromWindow || fromStorage);
+    if (isPageOnDeployedHost() && isLocalApiHostUrl(explicit)) {
+      explicit = "";
+    }
     if (explicit) return explicit;
 
     if (typeof window !== "undefined" && window.location) {

@@ -40,9 +40,13 @@
   const API_BASE = (() => {
     const fromWindow = typeof window !== "undefined" ? String(window.__API_BASE__ || "").trim() : "";
     const fromStorage = typeof localStorage !== "undefined" ? String(localStorage.getItem("ti_api_base") || "").trim() : "";
-    const explicit = (fromWindow || fromStorage).replace(/\/+$/, "");
-    if (explicit) return explicit;
+    let explicit = (fromWindow || fromStorage).replace(/\/+$/, "");
     const host = String(window?.location?.hostname || "").toLowerCase();
+    const onDeployed = Boolean(host && host !== "localhost" && host !== "127.0.0.1" && host !== "0.0.0.0");
+    const ex = explicit.toLowerCase();
+    const localApi = ex.startsWith("http://localhost") || ex.startsWith("http://127.0.0.1") || ex.startsWith("http://0.0.0.0");
+    if (onDeployed && localApi) explicit = "";
+    if (explicit) return explicit;
     if (host === "localhost" || host === "127.0.0.1" || host === "0.0.0.0") return "http://localhost:3001/api";
     return `${window.location.origin}/api`;
   })();
