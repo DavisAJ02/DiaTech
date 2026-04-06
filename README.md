@@ -85,6 +85,13 @@ This repository now includes:
 ### 1) Create Supabase storage table
 Run `supabase/schema.sql` in your Supabase SQL Editor.
 
+### 1b) Auth + RBAC (optionnel, bonnes pratiques)
+- Activer **Authentication** (email/mot de passe ou fournisseur SSO) dans Supabase.
+- Exécuter `supabase/schema_profiles_rbac.sql` : table **`public.profiles`** (`id` → `auth.users`, colonne **`role`**: `admin` | `agent` | `user`), **RLS** (lecture du propre profil), trigger **`handle_new_user`** pour créer une ligne à l’inscription.
+- Côté navigateur : copier `env-public.example.js` vers `env-public.js` et renseigner **`supabaseUrl`** + **`supabaseAnonKey`** (clé **anon** uniquement ; jamais la service role dans le front).
+- Le formulaire de connexion tente d’abord Supabase si la config est présente (identifiant = **email** ou `utilisateur@cmd.local`), sinon les comptes **démo** habituels.
+- Rôle global : `window.currentUserRole` après login ; repli **`user`** si profil absent ou invalide.
+
 ### 2) Set Vercel environment variables
 In your Vercel project, add:
 - `SUPABASE_URL`

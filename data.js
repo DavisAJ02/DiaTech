@@ -319,6 +319,13 @@ const DB = {
   session: {
     currentUserId: null,
     isAuthenticated: false,
+    /** 'demo' | 'supabase' — rempli après login */
+    authProvider: null,
+    /** Rôle issu de public.profiles (admin | agent | user) */
+    profileRole: null,
+    supabaseUserId: null,
+    supabaseEmail: null,
+    supabaseDisplayName: null,
   },
 };
 
@@ -334,6 +341,9 @@ const DEFAULT_AGENT_PAGES = [
   "reports.html",
   "it-analytics.html",
 ];
+
+/** Rôle `user` (sans agent) : accès lecture opérationnelle, sans réglages avancés */
+const USER_ROLE_PAGES = DEFAULT_AGENT_PAGES.filter((f) => f !== "settings.html");
 
 const INVENTORY_STORAGE_KEY = "nexusops_inventory_v2";
 
@@ -640,6 +650,15 @@ function nextUserId() {
 function getEffectiveAllowedPages(user) {
   if (!user || !user.active) return [];
   if (user.roles && user.roles.includes("admin")) return null;
+  if (
+    user.roles &&
+    user.roles.includes("user") &&
+    !user.roles.includes("agent") &&
+    !user.roles.includes("admin")
+  ) {
+    const ap = user.allowedPages;
+    if (ap == null || (Array.isArray(ap) && ap.length === 0)) return USER_ROLE_PAGES;
+  }
   const ap = user.allowedPages;
   if (ap == null || (Array.isArray(ap) && ap.length === 0)) return DEFAULT_AGENT_PAGES;
   const set = new Set(ap.map((f) => String(f).toLowerCase()));
@@ -671,17 +690,64 @@ function getAssignableUsers() {
 }
 
 /** In-memory session; persist with Auth.login / localStorage via auth.js */
+function profileRoleToAppRoles(profileRole) {
+  const r = String(profileRole || "user").toLowerCase();
+  if (r === "admin") return ["admin", "agent"];
+  if (r === "agent") return ["agent"];
+  if (r === "user") return ["user"];
+  return ["user"];
+}
+
+function getSupabaseSyntheticUser() {
+  const r = DB.session.profileRole || window.currentUserRole || "user";
+  const name = DB.session.supabaseDisplayName || DB.session.supabaseEmail || "Utilisateur";
+  const ini = String(name)
+    .split(/\s+/)
+    .map((x) => x.charAt(0))
+    .join("")
+    .slice(0, 2)
+    .toUpperCase() || "?";
+  return {
+    id: -1,
+    username: DB.session.supabaseEmail || "supabase",
+    email: DB.session.supabaseEmail || "",
+    name,
+    initials: ini,
+    avatarColor: "#64748b",
+    roles: profileRoleToAppRoles(r),
+    active: true,
+    authProvider: "supabase",
+  };
+}
+
 function setSessionUser(userId) {
   DB.session.currentUserId = userId;
   DB.session.isAuthenticated = userId != null;
 }
 
 function getCurrentUser() {
-  return getUserById(DB.session.currentUserId);
+  const uid = DB.session.currentUserId;
+  if (uid != null) {
+    const u = getUserById(uid);
+    if (!u) return null;
+    if (DB.session.authProvider === "supabase" && DB.session.profileRole) {
+      return { ...u, roles: profileRoleToAppRoles(DB.session.profileRole) };
+    }
+    return u;
+  }
+  if (DB.session.authProvider === "supabase" && DB.session.isAuthenticated) {
+    return getSupabaseSyntheticUser();
+  }
+  return null;
 }
 
 function clearSession() {
   DB.session.currentUserId = null;
   DB.session.isAuthenticated = false;
+  DB.session.authProvider = null;
+  DB.session.profileRole = null;
+  DB.session.supabaseUserId = null;
+  DB.session.supabaseEmail = null;
+  DB.session.supabaseDisplayName = null;
 }
 

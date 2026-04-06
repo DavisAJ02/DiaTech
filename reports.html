@@ -16,9 +16,10 @@
 <body>
 <script src="data.js"></script>
 <script src="i18n.js"></script>
+<script src="env-public.js"></script>
 <script src="auth.js"></script>
 <script src="api-client.js"></script>
-<script>Auth.guard();</script>
+<script>void Auth.guard().catch(function (e) { console.error(e); });</script>
 <aside class="sidebar">
   <div class="sidebar-logo">
     <span class="logo-mark">

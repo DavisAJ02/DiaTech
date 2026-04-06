@@ -307,6 +307,22 @@
       margin-bottom: var(--space-lg);
     }
 
+    .login-supabase-hint {
+      font-size: 12px;
+      line-height: 1.5;
+      color: var(--color-text-muted);
+      margin-top: -8px;
+      margin-bottom: var(--space-md);
+      padding: 10px 12px;
+      border-radius: 10px;
+      background: color-mix(in srgb, var(--color-primary) 8%, var(--color-bg));
+      border: 1px solid color-mix(in srgb, var(--color-primary) 18%, transparent);
+    }
+
+    .login-supabase-hint code {
+      font-size: 11px;
+    }
+
     body.login-page .login-field {
       display: flex;
       flex-direction: column;
@@ -707,6 +723,9 @@
       <div class="login-form-header">
         <h1>Connexion</h1>
         <p>Utilisez votre compte de travail CMD pour accéder à DiaTech.</p>
+        <p id="login-supabase-hint" class="login-supabase-hint" hidden>
+          Compte cloud : saisissez votre <strong>adresse e-mail</strong> et le mot de passe Supabase Auth (ou <code>identifiant@cmd.local</code> si vous n’avez pas de @).
+        </p>
       </div>
 
       <form id="login-form" novalidate>
@@ -767,15 +786,44 @@
   </div>
 
   <script src="data.js"></script>
+  <script src="env-public.js"></script>
   <script src="auth.js"></script>
   <script>
-    Auth.guard();
-    document.getElementById('login-form').addEventListener('submit', function (e) {
+    void Auth.guard().catch(function (e) { console.error(e); });
+    (function () {
+      var hint = document.getElementById('login-supabase-hint');
+      if (hint && typeof Auth !== 'undefined' && Auth.isSupabaseConfigured && Auth.isSupabaseConfigured()) {
+        hint.hidden = false;
+      }
+    })();
+    document.getElementById('login-form').addEventListener('submit', async function (e) {
       e.preventDefault();
       const err = document.getElementById('login-error');
       err.textContent = '';
-      const username = document.getElementById('login-user').value;
+      const username = document.getElementById('login-user').value.trim();
       const password = document.getElementById('login-pass').value;
+      if (typeof Auth !== 'undefined' && Auth.isSupabaseConfigured && Auth.isSupabaseConfigured()) {
+        try {
+          const mod = await import('./supabase-session.mjs');
+          const email = username.includes('@') ? username : username + '@cmd.local';
+          const sup = await mod.signInWithSupabase(email, password);
+          if (sup.ok) {
+            const q = new URLSearchParams(window.location.search);
+            const ret = q.get('return');
+            const path =
+              ret && /^[a-z0-9._-]+\.html$/i.test(ret) && ret.toLowerCase() !== 'login.html'
+                ? ret
+                : 'index.html';
+            window.location.replace(path);
+            return;
+          }
+          err.textContent = sup.error || 'Connexion refusée';
+          return;
+        } catch (ex) {
+          err.textContent = String(ex && ex.message ? ex.message : ex);
+          return;
+        }
+      }
       const res = Auth.login(username, password);
       if (!res.ok) { err.textContent = res.error; return; }
       const q = new URLSearchParams(window.location.search);

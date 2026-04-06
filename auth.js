@@ -1,7 +1,7 @@
-﻿// ============================
-// DiaTech – Client auth (demo)
 // ============================
-// Session in localStorage. Replace login() with API call in production.
+// DiaTech – Client auth (demo + Supabase optionnel)
+// ============================
+// Session demo : localStorage. Si env-public.js configure Supabase, Auth utilise JWT + table public.profiles (role).
 (function (global) {
   const STORAGE_KEY = 'nexusops_session_v1';
 
@@ -20,6 +20,18 @@
 
   function clearStored() {
     localStorage.removeItem(STORAGE_KEY);
+  }
+
+  function isSupabaseConfiguredSync() {
+    const p = typeof window !== 'undefined' ? window.__DIATECH_PUBLIC__ : null;
+    return Boolean(
+      p && String(p.supabaseUrl || '').trim() && String(p.supabaseAnonKey || '').trim()
+    );
+  }
+
+  async function tryHydrateSupabase() {
+    const mod = await import('./supabase-session.mjs');
+    await mod.hydrateFromSupabase();
   }
 
   function restoreSession() {
@@ -46,11 +58,24 @@
       return { ok: false, error: 'Invalid username or password' };
     if (typeof setSessionUser === 'function') setSessionUser(u.id);
     writeStored(u.id);
+    if (isSupabaseConfiguredSync()) {
+      import('./supabase-session.mjs')
+        .then((m) => m.signOutSupabase())
+        .catch(() => {});
+    }
     return { ok: true, user: u };
   }
 
-  function logout() {
+  async function logout() {
     clearStored();
+    if (isSupabaseConfiguredSync()) {
+      try {
+        const m = await import('./supabase-session.mjs');
+        await m.signOutSupabase();
+      } catch (_e) {
+        /* ignore */
+      }
+    }
     if (typeof clearSession === 'function') clearSession();
     window.location.href = 'login.html';
   }
@@ -77,18 +102,36 @@
     return ret;
   }
 
-  function guard() {
+  async function guard() {
     const path = pageName().toLowerCase();
 
+    let authed = false;
+
+    if (isSupabaseConfiguredSync()) {
+      document.documentElement.classList.add('auth-booting');
+      try {
+        await tryHydrateSupabase();
+        authed = !!currentUser();
+      } catch (e) {
+        console.warn('[DiaTech] Supabase hydrate', e);
+      } finally {
+        document.documentElement.classList.remove('auth-booting');
+      }
+    }
+
+    if (!authed) {
+      authed = restoreSession() && !!currentUser();
+    }
+
     if (path === 'login.html') {
-      if (restoreSession() && currentUser()) {
+      if (authed) {
         const q = new URLSearchParams(window.location.search);
         window.location.replace(safeReturnPath(q.get('return')));
       }
       return;
     }
 
-    if (!restoreSession() || !currentUser()) {
+    if (!authed) {
       window.location.replace('login.html?return=' + encodeURIComponent(pageName()));
       return;
     }
@@ -146,7 +189,7 @@
     document.querySelectorAll('.auth-logout-btn').forEach((btn) => {
       btn.addEventListener('click', (e) => {
         e.preventDefault();
-        logout();
+        void logout();
       });
     });
 
@@ -176,6 +219,6 @@
     enhanceUI,
     hasRole,
     currentUser,
+    isSupabaseConfigured: isSupabaseConfiguredSync,
   };
 })(typeof window !== 'undefined' ? window : this);
-

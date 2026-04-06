@@ -1,5 +1,8 @@
 -- DiaTech app-state table (key/value JSON storage)
 -- Run this in Supabase SQL Editor before first deploy.
+--
+-- Auth + RBAC (optionnel) : après `schema.sql`, exécuter `schema_profiles_rbac.sql`
+-- si vous utilisez Supabase Auth + rôles front (`profiles.role`).
 
 create table if not exists public.app_state (
   key text primary key,

@@ -4,7 +4,8 @@
   "private": true,
   "type": "commonjs",
   "scripts": {
-    "start:api": "node api/index.js"
+    "start:api": "node api/index.js",
+    "supabase:create-user": "node scripts/supabase-create-user.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.49.8",

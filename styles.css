@@ -3654,6 +3654,11 @@ body {
   }
 }
 
+/* Masque le contenu le temps de résoudre la session Supabase (évite flash) */
+html.auth-booting body {
+  visibility: hidden;
+}
+
 /* Dashboard flagship pass */
 body[data-page='index'] .app-content {
   gap: 14px;
