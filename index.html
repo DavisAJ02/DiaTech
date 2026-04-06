@@ -254,11 +254,11 @@
         <div style="display:flex; flex-direction:column; gap:10px; flex:1; min-width:0;">
           <div class="alert-stat warning">
             <span class="alert-label">Warning</span>
-            <span class="alert-num">187</span>
+            <span class="alert-num" id="alert-num-warning">0</span>
           </div>
           <div class="alert-stat critical">
             <span class="alert-label">Critical</span>
-            <span class="alert-num">12</span>
+            <span class="alert-num" id="alert-num-critical">0</span>
           </div>
         </div>
         <div style="display:flex; flex-direction:column; align-items:center; flex-shrink:0;">
@@ -287,7 +287,7 @@
           <li><span class="dot" style="background:#0d9f6e"></span>Other <strong>—</strong></li>
         </ul>
       </div>
-      <div class="os-total">250 Devices total</div>
+      <div class="os-total" id="os-devices-total">0 Devices total</div>
     </div>
 
     </div>
@@ -320,12 +320,8 @@
       <div class="card-header"><h2>Availability</h2></div>
       <table class="avail-table">
         <thead><tr><th>Device</th><th>Online</th><th>Offline</th></tr></thead>
-        <tbody>
-          <tr><td>Server</td><td><span class="dot-green">13</span></td><td><span class="dot-red">7</span></td></tr>
-          <tr><td>PC</td><td><span class="dot-green">—</span></td><td><span class="dot-red">—</span></td></tr>
-          <tr><td>Mac</td><td><span class="dot-green">181</span></td><td><span class="dot-red">9</span></td></tr>
-          <tr><td>Linux</td><td><span class="dot-green">3</span></td><td><span class="dot-red">—</span></td></tr>
-          <tr><td>SNMP</td><td><span class="dot-green">2</span></td><td><span class="dot-red">5</span></td></tr>
+        <tbody id="avail-table-body">
+          <tr><td colspan="3" style="color:var(--text-muted);font-size:13px">Loading…</td></tr>
         </tbody>
       </table>
     </div>
@@ -335,9 +331,9 @@
       <div class="card-header"><h2>Satisfaction</h2></div>
       <div class="stars">★★★★★</div>
       <div class="satisfaction-rows">
-        <div class="sat-row"><span>Quality of support</span><div class="sat-bar"><div class="sat-fill" style="width:100%"></div></div><span>5</span></div>
-        <div class="sat-row"><span>Technician knowledge</span><div class="sat-bar"><div class="sat-fill" style="width:100%"></div></div><span>5</span></div>
-        <div class="sat-row"><span>Overall helpfulness</span><div class="sat-bar"><div class="sat-fill" style="width:100%"></div></div><span>5</span></div>
+        <div class="sat-row"><span>Quality of support</span><div class="sat-bar"><div class="sat-fill" id="sat-fill-1" style="width:0%"></div></div><span id="sat-score-1">—</span></div>
+        <div class="sat-row"><span>Technician knowledge</span><div class="sat-bar"><div class="sat-fill" id="sat-fill-2" style="width:0%"></div></div><span id="sat-score-2">—</span></div>
+        <div class="sat-row"><span>Overall helpfulness</span><div class="sat-bar"><div class="sat-fill" id="sat-fill-3" style="width:0%"></div></div><span id="sat-score-3">—</span></div>
       </div>
     </div>
 
