@@ -368,25 +368,38 @@ function loadDepartmentDevices() {
   }
 }
 
-renderDepartments();
-void hydrateDepartmentsAndDevicesFromApi().then(() => {
+let deptRefreshTimer = null;
+async function refreshDepartmentsFromServer() {
+  await hydrateDepartmentsAndDevicesFromApi();
   departments = withDepartmentColors(Array.isArray(DB.departments) ? DB.departments : departments);
   renderDepartments();
+}
+function scheduleDepartmentsRefresh() {
+  if (deptRefreshTimer) clearTimeout(deptRefreshTimer);
+  deptRefreshTimer = setTimeout(() => {
+    deptRefreshTimer = null;
+    if (typeof ApiClient === 'undefined') return;
+    void refreshDepartmentsFromServer();
+  }, 450);
+}
+
+renderDepartments();
+void refreshDepartmentsFromServer();
+
+window.addEventListener('diatech:data-changed', () => scheduleDepartmentsRefresh());
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible') scheduleDepartmentsRefresh();
 });
-window.addEventListener('diatech:data-changed', () => {
-  void hydrateDepartmentsAndDevicesFromApi().then(() => {
-    departments = withDepartmentColors(Array.isArray(DB.departments) ? DB.departments : departments);
-    renderDepartments();
-  });
+window.addEventListener('pageshow', (ev) => {
+  if (ev.persisted) scheduleDepartmentsRefresh();
 });
+window.addEventListener('focus', () => scheduleDepartmentsRefresh());
+
 setInterval(() => {
   if (document.visibilityState === 'visible' && typeof ApiClient !== 'undefined') {
-    void hydrateDepartmentsAndDevicesFromApi().then(() => {
-      departments = withDepartmentColors(Array.isArray(DB.departments) ? DB.departments : departments);
-      renderDepartments();
-    });
+    void refreshDepartmentsFromServer();
   }
-}, 90000);
+}, 45000);
 Auth.enhanceUI();
 </script>
 </body>

@@ -576,6 +576,8 @@ window.saveEditTicket = async function() {
     await ApiClient.upsertTicket(t);
   }
 
+  if (typeof window.diatechNotifyDataChanged === 'function') window.diatechNotifyDataChanged('tickets');
+
   closeEditTicketModal();
   renderTickets();
 };
@@ -621,6 +623,7 @@ window.submitNewTicket = async function() {
 
   ticketsStore.unshift(newTicket);
   DB.tickets = ticketsStore;
+  if (typeof window.diatechNotifyDataChanged === 'function') window.diatechNotifyDataChanged('tickets');
   document.getElementById('new-ticket-modal').classList.remove('open');
   document.getElementById('nt-title').value = '';
   const ntDept = document.getElementById('nt-department');
