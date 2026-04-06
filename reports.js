@@ -501,7 +501,9 @@
       if (after && Array.isArray(after.tickets)) DB.tickets = after.tickets;
       return;
     }
-    if (Array.isArray(remote.tickets)) DB.tickets = remote.tickets;
+    if (Array.isArray(remote.tickets) && (remote.tickets.length > 0 || localTickets.length === 0)) {
+      DB.tickets = remote.tickets;
+    }
   }
 
   document.querySelectorAll(".chip[data-period]").forEach((btn) => {

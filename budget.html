@@ -239,8 +239,12 @@
       }
       return;
     }
-    if (Array.isArray(remote.expenses)) DB.expenses = remote.expenses;
-    if (Array.isArray(remote.inventory)) DB.inventory = remote.inventory;
+    if (Array.isArray(remote.expenses) && (remote.expenses.length > 0 || localSnapshot.expenses.length === 0)) {
+      DB.expenses = remote.expenses;
+    }
+    if (Array.isArray(remote.inventory) && (remote.inventory.length > 0 || localSnapshot.inventory.length === 0)) {
+      DB.inventory = remote.inventory;
+    }
     if (remote.expenseMonthlyBudget != null) DB.expenseMonthlyBudget = Number(remote.expenseMonthlyBudget) || 0;
   }
 

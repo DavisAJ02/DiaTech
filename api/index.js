@@ -26,6 +26,12 @@ let supabase = null;
 app.use(cors({ origin: true, credentials: false }));
 app.use(express.json({ limit: "1mb" }));
 
+function envTrim(name) {
+  const v = process.env[name];
+  if (v == null) return "";
+  return String(v).replace(/\r/g, "").trim();
+}
+
 function emptyDb() {
   return {
     inventory: [],
@@ -42,14 +48,17 @@ function emptyDb() {
 }
 
 function hasSupabaseConfig() {
-  return Boolean(process.env.SUPABASE_URL && (process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_ANON_KEY));
+  const url = envTrim("SUPABASE_URL");
+  const key = envTrim("SUPABASE_SERVICE_ROLE_KEY") || envTrim("SUPABASE_ANON_KEY");
+  return Boolean(url && key);
 }
 
 function getSupabase() {
   if (!hasSupabaseConfig()) return null;
   if (supabase) return supabase;
-  const key = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_ANON_KEY;
-  supabase = createClient(process.env.SUPABASE_URL, key, {
+  const url = envTrim("SUPABASE_URL");
+  const key = envTrim("SUPABASE_SERVICE_ROLE_KEY") || envTrim("SUPABASE_ANON_KEY");
+  supabase = createClient(url, key, {
     auth: { persistSession: false, autoRefreshToken: false },
   });
   return supabase;
@@ -96,6 +105,34 @@ async function writeDbToSupabase(db) {
   return true;
 }
 
+function isDbEffectivelyEmpty(db) {
+  if (!db) return true;
+  const inv = Array.isArray(db.inventory) ? db.inventory.length : 0;
+  const tix = Array.isArray(db.tickets) ? db.tickets.length : 0;
+  const dep = Array.isArray(db.departments) ? db.departments.length : 0;
+  const dev = Array.isArray(db.devices) ? db.devices.length : 0;
+  const exp = Array.isArray(db.expenses) ? db.expenses.length : 0;
+  const cons = Array.isArray(db.consumables) ? db.consumables.length : 0;
+  return inv + tix + dep + dev + exp + cons === 0;
+}
+
+async function loadBundledSeedDb() {
+  const candidates = [
+    path.join(__dirname, "..", "backend", "db.json"),
+    path.join(process.cwd(), "backend", "db.json"),
+  ];
+  for (const p of candidates) {
+    try {
+      const raw = await fs.promises.readFile(p, "utf8");
+      const parsed = JSON.parse(raw);
+      return sanitizeDb(parsed);
+    } catch (_e) {
+      continue;
+    }
+  }
+  return null;
+}
+
 async function readDbFromFile() {
   try {
     const raw = await fs.promises.readFile(DB_PATH, "utf8");
@@ -113,6 +150,18 @@ async function readDb() {
   if (hasSupabaseConfig()) {
     try {
       const db = await readDbFromSupabase();
+      if (db && isDbEffectivelyEmpty(db)) {
+        const seed = await loadBundledSeedDb();
+        if (seed && !isDbEffectivelyEmpty(seed)) {
+          try {
+            await writeDbToSupabase(seed);
+            return seed;
+          } catch (e) {
+            console.error("Auto-seed to Supabase failed (serving bundled data for this request):", e?.message || e);
+            return seed;
+          }
+        }
+      }
       if (db) return db;
     } catch (e) {
       console.error("Supabase read failed, fallback to file DB:", e?.message || e);
@@ -124,10 +173,11 @@ async function readDb() {
 async function writeDb(data) {
   if (hasSupabaseConfig()) {
     try {
-      const ok = await writeDbToSupabase(data);
-      if (ok) return;
+      await writeDbToSupabase(data);
+      return;
     } catch (e) {
-      console.error("Supabase write failed, fallback to file DB:", e?.message || e);
+      console.error("Supabase write failed:", e?.message || e);
+      throw e;
     }
   }
   await writeDbToFile(data);
@@ -507,6 +557,12 @@ app.delete("/api/expenses/:id", async (req, res) => {
   db.expenses = db.expenses.filter((x) => safeId(x.id) !== id);
   await writeDb(db);
   res.json({ ok: true });
+});
+
+app.use((err, _req, res, _next) => {
+  if (res.headersSent) return;
+  console.error("API error:", err?.message || err);
+  res.status(500).json({ error: "internal_error", message: String(err?.message || err) });
 });
 
 if (require.main === module) {

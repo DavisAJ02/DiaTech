@@ -310,9 +310,11 @@
       apiRequest("/consumables"),
       apiRequest("/consumables/logs"),
     ]);
-    if (Array.isArray(inv)) DB.inventory = inv;
-    if (Array.isArray(cons)) DB.consumables = cons;
-    if (Array.isArray(logs)) DB.consumableLogs = logs;
+    if (inv === null && cons === null && logs === null) return;
+
+    if (Array.isArray(inv) && (inv.length > 0 || localInventory.length === 0)) DB.inventory = inv;
+    if (Array.isArray(cons) && (cons.length > 0 || localConsumables.length === 0)) DB.consumables = cons;
+    if (Array.isArray(logs) && (logs.length > 0 || localLogs.length === 0)) DB.consumableLogs = logs;
 
     if (apiOnline && Array.isArray(inv) && inv.length === 0 && localInventory.length > 0) {
       await apiRequest("/bootstrap", {

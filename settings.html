@@ -340,6 +340,11 @@ async function hydrateSlaPoliciesFromApi() {
   const local = Array.isArray(DB.slaPolicies) ? DB.slaPolicies.slice() : [];
   if ((!Array.isArray(remote.slaPolicies) || remote.slaPolicies.length === 0) && local.length > 0) {
     await ApiClient.bootstrap({ slaPolicies: local });
+    const after = await ApiClient.getAppData();
+    if (after && Array.isArray(after.slaPolicies) && after.slaPolicies.length) {
+      DB.slaPolicies = after.slaPolicies;
+      if (typeof persistSlaPolicies === 'function') persistSlaPolicies();
+    }
     return;
   }
   if (Array.isArray(remote.slaPolicies) && remote.slaPolicies.length) {
