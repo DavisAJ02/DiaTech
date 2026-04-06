@@ -72,6 +72,7 @@
 <script src="data.js"></script>
 <script src="i18n.js"></script>
 <script src="auth.js"></script>
+<script src="data-sync.js"></script>
 <script src="api-client.js"></script>
 <script>Auth.guard();</script>
 <aside class="sidebar">
@@ -147,42 +148,136 @@ function withDepartmentColors(list) {
 let departments = withDepartmentColors(DB.departments);
 let departmentDevices = loadDepartmentDevices();
 
+function normDeptName(s) {
+  return String(s || '').trim().toLowerCase();
+}
+
+function openTicketsInDepartment(deptName) {
+  const key = normDeptName(deptName);
+  return (Array.isArray(DB.tickets) ? DB.tickets : []).filter((t) => {
+    if (String(t?.status || '').toLowerCase() === 'resolved') return false;
+    return normDeptName(t?.department) === key;
+  });
+}
+
+function ticketSlaClassForDeptPage(ticket) {
+  const createdAt = ticket?.createdAt || null;
+  if (!createdAt) return String(ticket?.slaClass || 'ok').toLowerCase() === 'breach' ? 'breach' : 'ok';
+  const targetHours =
+    typeof getSlaTargetHoursForDate === 'function' ? Number(getSlaTargetHoursForDate(createdAt)) || 4 : 4;
+  const isResolved = String(ticket?.status || '').toLowerCase() === 'resolved';
+  const endAt = isResolved ? (ticket?.resolvedAt ? new Date(ticket.resolvedAt) : new Date()) : new Date();
+  const start = new Date(createdAt);
+  if (Number.isNaN(start.getTime()) || Number.isNaN(endAt.getTime())) {
+    return String(ticket?.slaClass || 'ok').toLowerCase() === 'breach' ? 'breach' : 'ok';
+  }
+  const elapsed = (endAt.getTime() - start.getTime()) / 3600000;
+  const delta = targetHours - elapsed;
+  if (delta < 0) return 'breach';
+  if (delta <= Math.max(1, targetHours * 0.25)) return 'warn';
+  return 'ok';
+}
+
+function alertCountForDepartment(deptName) {
+  return openTicketsInDepartment(deptName).filter((t) => {
+    const cls = ticketSlaClassForDeptPage(t);
+    return t.priority === 'critical' || cls === 'breach' || cls === 'warn';
+  }).length;
+}
+
+function deviceCountForDepartment(deptName) {
+  const key = normDeptName(deptName);
+  let n = 0;
+  (Array.isArray(DB.inventory) ? DB.inventory : []).forEach((item) => {
+    if (normDeptName(item?.department) === key) n++;
+  });
+  const devList = DB.devices;
+  if (Array.isArray(devList)) {
+    devList.forEach((d) => {
+      if (normDeptName(d?.department) === key) n++;
+    });
+  }
+  if (n === 0) {
+    n = departmentDevices.filter((x) => normDeptName(x?.department) === key).length;
+  }
+  return n;
+}
+
+function openTicketCountForDepartment(deptName) {
+  return openTicketsInDepartment(deptName).length;
+}
+
 async function hydrateDepartmentsAndDevicesFromApi() {
   if (typeof ApiClient === 'undefined') return;
   const localDepartments = Array.isArray(DB.departments) ? DB.departments.slice() : [];
   const localDevices = Array.isArray(departmentDevices) ? departmentDevices.slice() : [];
-  const [remoteDepartments, remoteDevices] = await Promise.all([
-    ApiClient.getDepartments(),
-    ApiClient.getDevices()
-  ]);
-  const hasRemoteDepartments = Array.isArray(remoteDepartments);
-  const hasRemoteDevices = Array.isArray(remoteDevices);
-  if (!hasRemoteDepartments && !hasRemoteDevices) return;
+  const localTickets = Array.isArray(DB.tickets) ? DB.tickets.slice() : [];
+  const localInventory = Array.isArray(DB.inventory) ? DB.inventory.slice() : [];
+
+  const pack = await ApiClient.getAppData();
+  let remoteDepartments;
+  let remoteDevices;
+  if (pack && typeof pack === 'object') {
+    if (Array.isArray(pack.departments)) DB.departments = pack.departments;
+    if (Array.isArray(pack.tickets)) DB.tickets = pack.tickets;
+    if (Array.isArray(pack.inventory)) DB.inventory = pack.inventory;
+    if (Array.isArray(pack.devices)) DB.devices = pack.devices;
+    remoteDepartments = DB.departments;
+    remoteDevices = Array.isArray(DB.devices) ? DB.devices : [];
+  } else {
+    const [rd, rdev, remoteTickets] = await Promise.all([
+      ApiClient.getDepartments(),
+      ApiClient.getDevices(),
+      ApiClient.getTickets(),
+    ]);
+    remoteDepartments = rd;
+    remoteDevices = rdev;
+    if (Array.isArray(remoteDepartments) && remoteDepartments.length) DB.departments = remoteDepartments;
+    if (Array.isArray(remoteDevices) && remoteDevices.length) {
+      DB.devices = remoteDevices;
+      departmentDevices = remoteDevices;
+      try {
+        localStorage.setItem(DEPARTMENT_DEVICE_STORAGE_KEY, JSON.stringify(departmentDevices));
+      } catch (_e) {}
+    }
+    if (Array.isArray(remoteTickets)) DB.tickets = remoteTickets;
+  }
+
+  const hasRemoteDepartments = Array.isArray(remoteDepartments) && remoteDepartments.length > 0;
+  const hasRemoteDevices = Array.isArray(remoteDevices) && remoteDevices.length > 0;
 
   const shouldBootstrap =
-    (!hasRemoteDepartments || remoteDepartments.length === 0) &&
-    (!hasRemoteDevices || remoteDevices.length === 0) &&
-    (localDepartments.length > 0 || localDevices.length > 0);
+    !hasRemoteDepartments &&
+    !hasRemoteDevices &&
+    (localDepartments.length > 0 || localDevices.length > 0 || localTickets.length > 0 || localInventory.length > 0);
   if (shouldBootstrap) {
     await ApiClient.bootstrap({
       departments: localDepartments,
-      devices: localDevices
+      devices: localDevices,
+      tickets: localTickets,
+      inventory: localInventory,
     });
+    const pack2 = await ApiClient.getAppData();
+    if (pack2 && typeof pack2 === 'object') {
+      if (Array.isArray(pack2.departments)) DB.departments = pack2.departments;
+      if (Array.isArray(pack2.tickets)) DB.tickets = pack2.tickets;
+      if (Array.isArray(pack2.inventory)) DB.inventory = pack2.inventory;
+      if (Array.isArray(pack2.devices)) DB.devices = pack2.devices;
+    }
   }
 
-  const [remoteDepartments2, remoteDevices2] = await Promise.all([
-    ApiClient.getDepartments(),
-    ApiClient.getDevices()
-  ]);
-  if (Array.isArray(remoteDepartments2) && remoteDepartments2.length) {
-    DB.departments = remoteDepartments2;
-    departments = withDepartmentColors(remoteDepartments2);
+  if (Array.isArray(DB.departments) && DB.departments.length) {
+    departments = withDepartmentColors(DB.departments);
   } else {
     departments = withDepartmentColors(localDepartments);
   }
-  if (Array.isArray(remoteDevices2) && remoteDevices2.length) {
-    departmentDevices = remoteDevices2;
-    localStorage.setItem(DEPARTMENT_DEVICE_STORAGE_KEY, JSON.stringify(departmentDevices));
+
+  const devFromDb = DB.devices;
+  if (Array.isArray(devFromDb) && devFromDb.length) {
+    departmentDevices = devFromDb;
+    try {
+      localStorage.setItem(DEPARTMENT_DEVICE_STORAGE_KEY, JSON.stringify(departmentDevices));
+    } catch (_e) {}
   }
 }
 
@@ -192,25 +287,34 @@ function departmentUrl(page, name, extra) {
   return `${page}?${qp.toString()}`;
 }
 
+function escHtml(s) {
+  return String(s ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/"/g, '&quot;');
+}
+
 function renderDepartments() {
   document.getElementById('dept-cards').innerHTML = departments.map(d => {
-    const alertCount = Math.max(1, Math.round((d.tickets || 0) * 0.35));
-    const deviceCount = departmentDevices.filter(x => x.department === d.name).length;
+    const ticketCount = openTicketCountForDepartment(d.name);
+    const alertCount = alertCountForDepartment(d.name);
+    const deviceCount = deviceCountForDepartment(d.name);
     const services = Array.isArray(d.services) && d.services.length
-      ? `<div class="dept-card-services">${d.services.map(s => `<span class="service-chip">${s}</span>`).join('')}</div>`
+      ? `<div class="dept-card-services">${d.services.map(s => `<span class="service-chip">${escHtml(s)}</span>`).join('')}</div>`
       : `<div class="dept-card-services">Sans service spécifique</div>`;
+    const initial = escHtml((d.name || '?').charAt(0));
     return `
     <div class="dept-card">
       <div class="dept-card-head">
-        <div class="dept-logo" style="background:${d.color}">${d.name.charAt(0)}</div>
+        <div class="dept-logo" style="background:${d.color}">${initial}</div>
         <div>
-          <div class="dept-card-name">${d.name}</div>
+          <div class="dept-card-name">${escHtml(d.name)}</div>
           ${services}
         </div>
       </div>
       <div class="dept-stats">
         <button type="button" class="dept-stat dept-stat-btn" onclick="window.location.href='${departmentUrl("tickets.html", d.name)}'">
-          <div class="dept-stat-val">${d.tickets}</div>
+          <div class="dept-stat-val">${ticketCount}</div>
           <div class="dept-stat-label">Tickets</div>
         </button>
         <div class="dept-stat dept-stat-btn dept-stat--alerts" role="button" tabindex="0" onclick="window.location.href='${departmentUrl("alerts.html", d.name)}'" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();window.location.href='${departmentUrl("alerts.html", d.name)}';}">
@@ -266,8 +370,23 @@ function loadDepartmentDevices() {
 
 renderDepartments();
 void hydrateDepartmentsAndDevicesFromApi().then(() => {
+  departments = withDepartmentColors(Array.isArray(DB.departments) ? DB.departments : departments);
   renderDepartments();
 });
+window.addEventListener('diatech:data-changed', () => {
+  void hydrateDepartmentsAndDevicesFromApi().then(() => {
+    departments = withDepartmentColors(Array.isArray(DB.departments) ? DB.departments : departments);
+    renderDepartments();
+  });
+});
+setInterval(() => {
+  if (document.visibilityState === 'visible' && typeof ApiClient !== 'undefined') {
+    void hydrateDepartmentsAndDevicesFromApi().then(() => {
+      departments = withDepartmentColors(Array.isArray(DB.departments) ? DB.departments : departments);
+      renderDepartments();
+    });
+  }
+}, 90000);
 Auth.enhanceUI();
 </script>
 </body>
