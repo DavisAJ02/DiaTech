@@ -222,6 +222,391 @@ function getDashboardStats() {
 }
 window.getDashboardStats = getDashboardStats;
 
+const MS_DAY = 86400000;
+
+function analyticsRangeStartMs(range) {
+  const now = Date.now();
+  if (range === '30d') return now - 30 * MS_DAY;
+  if (range === '90d') return now - 90 * MS_DAY;
+  return now - 7 * MS_DAY;
+}
+
+function ticketCreatedMs(t) {
+  if (!t?.createdAt) return null;
+  const d = new Date(t.createdAt);
+  return Number.isNaN(d.getTime()) ? null : d.getTime();
+}
+
+function ticketSlaClassLive(t) {
+  const fallback = String(t?.slaClass || 'ok').toLowerCase();
+  const createdAt = t?.createdAt || null;
+  if (!createdAt) return fallback === 'breach' ? 'breach' : 'ok';
+  const targetHours =
+    typeof getSlaTargetHoursForDate === 'function' ? Number(getSlaTargetHoursForDate(createdAt)) || 4 : 4;
+  const isResolved = String(t?.status || '').toLowerCase() === 'resolved';
+  const endAt = isResolved ? (t?.resolvedAt ? new Date(t.resolvedAt) : new Date()) : new Date();
+  const start = new Date(createdAt);
+  if (Number.isNaN(start.getTime()) || Number.isNaN(endAt.getTime())) return fallback === 'breach' ? 'breach' : 'ok';
+  const elapsed = (endAt.getTime() - start.getTime()) / 3600000;
+  const delta = targetHours - elapsed;
+  if (delta < 0) return 'breach';
+  if (delta <= Math.max(1, targetHours * 0.25)) return 'warn';
+  return 'ok';
+}
+
+function toSlaSplitPct(met, warn, breach) {
+  const t = met + warn + breach;
+  if (t === 0) return { met: 100, warning: 0, breached: 0 };
+  const m = Math.round((met / t) * 100);
+  const w = Math.round((warn / t) * 100);
+  const b = Math.max(0, 100 - m - w);
+  return { met: m, warning: w, breached: b };
+}
+
+function bucketDailyCounts(tickets, numDays) {
+  const labels = [];
+  const values = [];
+  const start = new Date();
+  start.setHours(0, 0, 0, 0);
+  start.setTime(start.getTime() - (numDays - 1) * MS_DAY);
+  for (let i = 0; i < numDays; i++) {
+    const dayStart = new Date(start);
+    dayStart.setDate(dayStart.getDate() + i);
+    const dayEnd = new Date(dayStart);
+    dayEnd.setHours(23, 59, 59, 999);
+    labels.push(dayStart.toLocaleDateString(undefined, { weekday: 'short' }));
+    const c0 = dayStart.getTime();
+    const c1 = dayEnd.getTime();
+    values.push(
+      tickets.filter((t) => {
+        const cm = ticketCreatedMs(t);
+        return cm != null && cm >= c0 && cm <= c1;
+      }).length
+    );
+  }
+  return { labels, values };
+}
+
+function buildTicketTrendSeries(range, tickets) {
+  const now = Date.now();
+  if (range === '7d') return bucketDailyCounts(tickets, 7);
+  if (range === '30d') {
+    const startMs = analyticsRangeStartMs('30d');
+    const n = 10;
+    const step = (now - startMs) / n;
+    const labels = [];
+    const values = [];
+    for (let i = 0; i < n; i++) {
+      const a = startMs + i * step;
+      const b = startMs + (i + 1) * step;
+      labels.push(`W${i + 1}`);
+      values.push(
+        tickets.filter((t) => {
+          const cm = ticketCreatedMs(t);
+          return cm != null && cm >= a && cm < b;
+        }).length
+      );
+    }
+    return { labels, values };
+  }
+  const labels = [];
+  const values = [];
+  for (let i = 11; i >= 0; i--) {
+    const d = new Date();
+    d.setMonth(d.getMonth() - i);
+    d.setDate(1);
+    d.setHours(0, 0, 0, 0);
+    const next = new Date(d);
+    next.setMonth(next.getMonth() + 1);
+    labels.push(d.toLocaleString('default', { month: 'short' }));
+    const c0 = d.getTime();
+    const c1 = next.getTime();
+    values.push(
+      tickets.filter((t) => {
+        const cm = ticketCreatedMs(t);
+        return cm != null && cm >= c0 && cm < c1;
+      }).length
+    );
+  }
+  return { labels, values };
+}
+
+function bucketVolumeForRange(tickets, range) {
+  const startMs = analyticsRangeStartMs(range);
+  const now = Date.now();
+  const span = Math.max(MS_DAY, now - startMs);
+  const n = 9;
+  const step = span / n;
+  const values = [];
+  for (let i = 0; i < n; i++) {
+    const a = startMs + i * step;
+    const b = startMs + (i + 1) * step;
+    values.push(
+      tickets.filter((t) => {
+        const cm = ticketCreatedMs(t);
+        return cm != null && cm >= a && cm < b;
+      }).length
+    );
+  }
+  return values;
+}
+
+function computeAlertCategoriesFromTickets(tickets) {
+  const labels = ['Hardware', 'Disk', 'Performance', 'Exchange', 'General'];
+  const counts = [0, 0, 0, 0, 0];
+  const titleOf = (t) => `${t?.title || ''} ${t?.description || ''}`.toLowerCase();
+  tickets.forEach((t) => {
+    const s = titleOf(t);
+    let idx = 4;
+    if (/\b(disk|storage|space|drive|volume)\b/.test(s)) idx = 1;
+    else if (/\b(cpu|performance|slow|memory|ram|lag)\b/.test(s)) idx = 2;
+    else if (/\b(exchange|email|mail|outlook|smtp)\b/.test(s)) idx = 3;
+    else if (/\b(hardware|printer|network|vpn|machine|laptop|server|fan|temperature)\b/.test(s)) idx = 0;
+    counts[idx]++;
+  });
+  const base = (typeof DB !== 'undefined' && DB.alertCategories?.colors) || [
+    '#f43f5e',
+    '#f59e0b',
+    '#fb923c',
+    '#3b82f6',
+    '#0f172a',
+  ];
+  return { labels, values: counts, colors: base };
+}
+
+function inferOsCountsFromInventory(inv) {
+  const raw = { windows: 0, unknown: 0, mac: 0, other: 0 };
+  (Array.isArray(inv) ? inv : []).forEach((item) => {
+    const specs = String(item?.specs || '').toLowerCase();
+    const name = String(item?.name || '').toLowerCase();
+    const type = String(item?.type || '').toLowerCase();
+    const blob = `${specs} ${name} ${type}`;
+    if (/ipad|ipados|macos|apple|macbook|\bmac\b/.test(blob)) raw.mac++;
+    else if (/android|chromebook|linux/.test(blob)) raw.other++;
+    else if (/hp |lenovo|dell|asus|acer|windows|surface/.test(blob) || /laptop|desktop|ordinateur|notebook/.test(type))
+      raw.windows++;
+    else if (blob.trim()) raw.other++;
+    else raw.unknown++;
+  });
+  return raw;
+}
+
+function getOsChartSeriesFromData() {
+  const fallbackLabels = ['Windows', 'Unknown', 'Mac', 'Other'];
+  try {
+    const dev = typeof DB !== 'undefined' ? DB.devices : null;
+    if (dev && typeof dev === 'object' && !Array.isArray(dev)) {
+      const od = dev.osDistribution;
+      if (od && typeof od === 'object') {
+        const data = [
+          Number(od.windows) || 0,
+          Number(od.unknown) || 0,
+          Number(od.mac) || 0,
+          Number(od.other) || 0,
+        ];
+        const total = data.reduce((a, b) => a + b, 0);
+        if (total > 0) return { labels: [...fallbackLabels], data };
+      }
+    }
+  } catch (_e) {}
+  const inv = getSafeInventory();
+  const raw = inferOsCountsFromInventory(inv);
+  const data = [raw.windows, raw.unknown, raw.mac, raw.other];
+  const total = data.reduce((a, b) => a + b, 0);
+  if (total <= 0) return { labels: [...fallbackLabels], data: [...OS_PLATFORM_FALLBACK_DATA] };
+  return { labels: [...fallbackLabels], data };
+}
+
+function ticketMatchesDepartmentName(ticket, deptName) {
+  const a = String(ticket?.department || '').trim().toLowerCase();
+  const b = String(deptName || '').trim().toLowerCase();
+  return a !== '' && a === b;
+}
+
+function countOpenTicketsInDepartment(deptName) {
+  return getSafeTickets().filter((t) => {
+    if (String(t?.status || '').toLowerCase() === 'resolved') return false;
+    return ticketMatchesDepartmentName(t, deptName);
+  }).length;
+}
+
+function departmentAlertPillCounts(deptName) {
+  const open = getSafeTickets().filter((t) => {
+    if (String(t?.status || '').toLowerCase() === 'resolved') return false;
+    return ticketMatchesDepartmentName(t, deptName);
+  });
+  const p1 = open.filter((t) => t.priority === 'critical' || ticketSlaClassLive(t) === 'breach').length;
+  const p2 = open.filter((t) => {
+    if (t.priority === 'critical' || ticketSlaClassLive(t) === 'breach') return false;
+    return ticketSlaClassLive(t) === 'warn' || t.priority === 'high';
+  }).length;
+  const p3 = Math.max(0, open.length - p1 - p2);
+  return [p1, p2, p3];
+}
+
+function computeLiveAnalytics(range) {
+  const tickets = getSafeTickets();
+  const startMs = analyticsRangeStartMs(range);
+  const now = Date.now();
+  const inRange = tickets.filter((t) => {
+    const cm = ticketCreatedMs(t);
+    return cm != null && cm >= startMs && cm <= now;
+  });
+  const priSource =
+    inRange.length > 0
+      ? inRange
+      : tickets.filter((t) => String(t?.status || '').toLowerCase() !== 'resolved');
+  const pri = { critical: 0, high: 0, medium: 0, low: 0 };
+  priSource.forEach((t) => {
+    const p = String(t.priority || 'low').toLowerCase();
+    if (pri[p] !== undefined) pri[p]++;
+  });
+  const slaSource =
+    inRange.length > 0
+      ? inRange
+      : tickets.filter((t) => String(t?.status || '').toLowerCase() !== 'resolved');
+  let met = 0;
+  let warn = 0;
+  let breach = 0;
+  slaSource.forEach((t) => {
+    const c = ticketSlaClassLive(t);
+    if (c === 'breach') breach++;
+    else if (c === 'warn') warn++;
+    else met++;
+  });
+  const slaSplitPct = toSlaSplitPct(met, warn, breach);
+  const resolvedInRange = inRange.filter(
+    (t) => String(t?.status || '').toLowerCase() === 'resolved' && t?.resolvedAt
+  );
+  let sumH = 0;
+  let nRes = 0;
+  resolvedInRange.forEach((t) => {
+    const c = ticketCreatedMs(t);
+    const r = new Date(t.resolvedAt).getTime();
+    if (c != null && !Number.isNaN(r)) {
+      sumH += (r - c) / 3600000;
+      nRes++;
+    }
+  });
+  const avgResolutionHours = nRes > 0 ? Math.round((sumH / nRes) * 10) / 10 : null;
+  const prevStart = startMs - (now - startMs);
+  const prevCount = tickets.filter((t) => {
+    const cm = ticketCreatedMs(t);
+    return cm != null && cm >= prevStart && cm < startMs;
+  }).length;
+  const curCount = inRange.length;
+  let volPct = 0;
+  if (prevCount > 0) volPct = Math.round(((curCount - prevCount) / prevCount) * 1000) / 10;
+  else if (curCount > 0) volPct = 100;
+  let resolvedOk = 0;
+  let resolvedTotal = 0;
+  resolvedInRange.forEach((t) => {
+    resolvedTotal++;
+    if (ticketSlaClassLive(t) !== 'breach') resolvedOk++;
+  });
+  let slaCompliancePct = 100;
+  if (resolvedTotal > 0) slaCompliancePct = Math.round((resolvedOk / resolvedTotal) * 100);
+  else if (slaSource.length > 0) slaCompliancePct = slaSplitPct.met;
+  return {
+    ticketTrend: buildTicketTrendSeries(range, tickets),
+    ticketsByPriority: pri,
+    slaSplitPct,
+    avgResolutionHours,
+    insightVolumeChangePct: volPct,
+    slaCompliancePct,
+  };
+}
+
+function getEffectiveAnalytics(range) {
+  return computeLiveAnalytics(range);
+}
+
+function updateAlertStatusNumbers() {
+  const stats = dashboardApiStats || {};
+  const local = computeInventoryStats();
+  const w = Number(stats.replacementSoon ?? stats.warningDevices ?? local.warningDevices ?? 0);
+  const c = Number(stats.criticalDevices ?? local.criticalDevices ?? 0);
+  const ew = document.getElementById('alert-num-warning');
+  const ec = document.getElementById('alert-num-critical');
+  if (ew) ew.textContent = String(w);
+  if (ec) ec.textContent = String(c);
+}
+
+function updateOsDevicesTotalLine() {
+  const el = document.getElementById('os-devices-total');
+  if (!el) return;
+  const n = getSafeInventory().length;
+  el.textContent = `${n} Devices total`;
+}
+
+function renderAvailabilityTable() {
+  const tbody = document.getElementById('avail-table-body');
+  if (!tbody) return;
+  const dev = typeof DB !== 'undefined' ? DB.devices : null;
+  if (dev && typeof dev === 'object' && !Array.isArray(dev) && dev.server && typeof dev.server.online === 'number') {
+    const rows = [
+      ['Server', dev.server?.online, dev.server?.offline],
+      ['PC', dev.pc?.online, dev.pc?.offline],
+      ['Mac', dev.mac?.online, dev.mac?.offline],
+      ['Linux', dev.linux?.online, dev.linux?.offline],
+      ['SNMP', dev.snmp?.online, dev.snmp?.offline],
+    ];
+    tbody.innerHTML = rows
+      .map(([name, on, off]) => {
+        const o = on != null && Number(on) > 0 ? `<span class="dot-green">${on}</span>` : '<span class="dot-green">—</span>';
+        const f = off != null && Number(off) > 0 ? `<span class="dot-red">${off}</span>` : '<span class="dot-red">—</span>';
+        return `<tr><td>${name}</td><td>${o}</td><td>${f}</td></tr>`;
+      })
+      .join('');
+    return;
+  }
+  const inv = getSafeInventory();
+  const groups = {
+    Server: { on: 0, off: 0 },
+    PC: { on: 0, off: 0 },
+    Mac: { on: 0, off: 0 },
+    Other: { on: 0, off: 0 },
+  };
+  inv.forEach((item) => {
+    const specs = String(item?.specs || '').toLowerCase();
+    const name = String(item?.name || '').toLowerCase();
+    const type = String(item?.type || '').toLowerCase();
+    const blob = `${specs} ${name} ${type}`;
+    let g = 'Other';
+    if (/server|srv-|srv_/.test(blob)) g = 'Server';
+    else if (/ipad|ipados|macos|apple|macbook|\bmac\b/.test(blob)) g = 'Mac';
+    else if (/laptop|desktop|ordinateur|notebook|pc-|workstation/.test(blob)) g = 'PC';
+    const bad =
+      String(item?.condition || '').toLowerCase() === 'mauvais' ||
+      String(item?.status || '').toLowerCase() === 'critical';
+    if (bad) groups[g].off++;
+    else groups[g].on++;
+  });
+  tbody.innerHTML = ['Server', 'PC', 'Mac', 'Other']
+    .map((name) => {
+      const { on, off } = groups[name];
+      const o = on > 0 ? `<span class="dot-green">${on}</span>` : '<span class="dot-green">—</span>';
+      const f = off > 0 ? `<span class="dot-red">${off}</span>` : '<span class="dot-red">—</span>';
+      return `<tr><td>${name}</td><td>${o}</td><td>${f}</td></tr>`;
+    })
+    .join('');
+}
+
+function updateSatisfactionFromSla(range) {
+  const a = getEffectiveAnalytics(range);
+  const pct = Math.max(0, Math.min(100, Number(a.slaCompliancePct) || 0));
+  const stars = Math.max(1, Math.min(5, Math.round(pct / 20)));
+  for (let i = 1; i <= 3; i++) {
+    const f = document.getElementById(`sat-fill-${i}`);
+    const s = document.getElementById(`sat-score-${i}`);
+    if (f) f.style.width = `${pct}%`;
+    if (s) s.textContent = String(stars);
+  }
+  const wrap = document.querySelector('.satisfaction-rows')?.parentElement;
+  const starEl = wrap?.querySelector('.stars');
+  if (starEl) starEl.textContent = '★'.repeat(stars) + '☆'.repeat(5 - stars);
+}
+
 function renderUnifiedKpis() {
   const stats = getDashboardStats();
   const elOpen = document.getElementById('kpi-open-tickets');
@@ -272,6 +657,8 @@ window.assignTicket = function(id, btn) {
 };
 
 function renderDashboardSidePanels() {
+  const depts = Array.isArray(DB?.departments) ? DB.departments : [];
+
   const critBody = document.getElementById('critical-tickets-body');
   if (critBody) {
     const critTickets = getSafeTickets().filter(t => t.slaClass === 'breach' || t.priority === 'critical').slice(0, 5);
@@ -300,27 +687,32 @@ function renderDashboardSidePanels() {
   }
 
   const deptAlertsList = document.getElementById('department-alerts-list');
-  if (deptAlertsList && Array.isArray(DB?.departments)) {
-    deptAlertsList.innerHTML = DB.departments.map(d => `
+  if (deptAlertsList && depts.length) {
+    deptAlertsList.innerHTML = depts
+      .map((d) => {
+        const [a, b, c] = departmentAlertPillCounts(d.name);
+        return `
     <div class="cust-row">
       <span class="cust-name">${d.name}</span>
-      ${[
-        Math.max(0, Math.round((d.tickets || 0) * 0.6)),
-        Math.max(0, Math.round((d.tickets || 0) * 0.3)),
-        Math.max(0, Math.round((d.tickets || 0) * 0.1))
-      ].map((a, i) => `<span class="alert-pill p${i+1}">${a}</span>`).join('')}
+      ${[a, b, c].map((x, i) => `<span class="alert-pill p${i + 1}">${x}</span>`).join('')}
     </div>
-  `).join('');
+  `;
+      })
+      .join('');
   }
 
   const deptTicketsList = document.getElementById('department-tickets-list');
-  if (deptTicketsList && Array.isArray(DB?.departments)) {
-    deptTicketsList.innerHTML = DB.departments.map(d => `
+  if (deptTicketsList && depts.length) {
+    deptTicketsList.innerHTML = depts
+      .map(
+        (d) => `
     <div class="ct-row">
       <span class="ct-name">${d.name}</span>
-      <span class="ct-count">${d.tickets}</span>
+      <span class="ct-count">${countOpenTicketsInDepartment(d.name)}</span>
     </div>
-  `).join('');
+  `
+      )
+      .join('');
   }
 }
 
@@ -382,25 +774,32 @@ function drillTickets(query) {
 
 function updateAvgResolution(range) {
   const el = document.getElementById('avg-resolution-value');
-  if (!el || !DB.analytics?.avgResolutionHours) return;
-  const v = DB.analytics.avgResolutionHours[range];
-  el.textContent = typeof v === 'number' ? v.toFixed(1) : '—';
+  if (!el) return;
+  const a = getEffectiveAnalytics(range);
+  const v = a.avgResolutionHours;
+  el.textContent = typeof v === 'number' && Number.isFinite(v) ? v.toFixed(1) : '—';
 }
 
 function renderInsights(range) {
   const panel = document.getElementById('insights-panel');
-  if (!panel || !DB.analytics) return;
-  const volPct = DB.analytics.insightVolumeChangePct[range];
-  const slaPct = DB.analytics.slaCompliancePct[range];
+  if (!panel) return;
+  const a = getEffectiveAnalytics(range);
+  const volPct = a.insightVolumeChangePct;
+  const slaPct = a.slaCompliancePct;
+  const volVerb = volPct >= 0 ? 'increased' : 'decreased';
+  const volAbs = Math.abs(volPct);
+  const critN = a.ticketsByPriority.critical || 0;
   const highNote =
-    range === '90d'
+    range === '90d' && critN <= 1
       ? 'Critical load is <strong>stable</strong> — keep monitoring breach trends.'
-      : '<strong>High priority tickets rising</strong> — align staffing on critical &amp; overdue.';
+      : critN >= 3
+        ? '<strong>Critical tickets elevated</strong> — prioritize staffing on breach and critical queues.'
+        : '<strong>Monitor priority mix</strong> — align staffing on critical &amp; overdue.';
 
   panel.innerHTML = `
     <div class="insight-item insight-item--up">
       <span class="insight-label">Volume</span>
-      <p>Ticket activity <strong>increased by ${volPct}%</strong> compared to the prior ${range === '7d' ? 'week' : range === '30d' ? 'month' : 'quarter'}.</p>
+      <p>Ticket activity <strong>${volVerb} by ${volAbs}%</strong> compared to the prior ${range === '7d' ? 'week' : range === '30d' ? 'month' : 'quarter'}.</p>
     </div>
     <div class="insight-item insight-item--warn">
       <span class="insight-label">Priority</span>
@@ -415,10 +814,11 @@ function renderInsights(range) {
 
 function buildTicketTrendChart(range) {
   const canvas = document.getElementById('chartTicketTrend');
-  if (!canvas || !DB.analytics?.ticketTrend?.[range]) return;
+  if (!canvas) return;
   const ctx = canvas.getContext('2d');
   if (trendChartInst) trendChartInst.destroy();
-  const series = DB.analytics.ticketTrend[range];
+  const series = getEffectiveAnalytics(range).ticketTrend;
+  if (!series?.labels?.length) return;
   const d = chartDefaults();
 
   trendChartInst = new Chart(ctx, {
@@ -503,7 +903,7 @@ function buildTicketVolumeChart(range) {
   if (!canvas) return;
   const ctx = canvas.getContext('2d');
   if (volumeChartInst) volumeChartInst.destroy();
-  const data = DB.ticketActivity[range];
+  const data = bucketVolumeForRange(getSafeTickets(), range);
   const d = chartDefaults();
   const labels = data.map((_, i) => `P${i + 1}`);
 
@@ -567,10 +967,10 @@ function buildTicketVolumeChart(range) {
 
 function buildSlaChart(range) {
   const canvas = document.getElementById('chartSlaCompliance');
-  if (!canvas || !DB.analytics?.slaSplitPct?.[range]) return;
+  if (!canvas) return;
   const ctx = canvas.getContext('2d');
   if (slaChartInst) slaChartInst.destroy();
-  const split = DB.analytics.slaSplitPct[range];
+  const split = getEffectiveAnalytics(range).slaSplitPct;
   const d = chartDefaults();
   const labels = ['Within SLA', 'At risk', 'Breached'];
   const values = [split.met, split.warning, split.breached];
@@ -629,10 +1029,10 @@ function buildSlaChart(range) {
 
 function buildPriorityChart(range) {
   const canvas = document.getElementById('chartPriority');
-  if (!canvas || !DB.analytics?.ticketsByPriority?.[range]) return;
+  if (!canvas) return;
   const ctx = canvas.getContext('2d');
   if (priorityChartInst) priorityChartInst.destroy();
-  const src = DB.analytics.ticketsByPriority[range];
+  const src = getEffectiveAnalytics(range).ticketsByPriority;
   const labels = PRIORITY_ORDER.map((k) => PRIORITY_LABELS[k]);
   const data = PRIORITY_ORDER.map((k) => src[k]);
   const colors = ['#e94d67', '#ea580c', '#ca8a04', '#0d9f6e'];
@@ -696,8 +1096,8 @@ function buildAlertDonut() {
   const d = chartDefaults();
   const stats = dashboardApiStats || {};
   const localStats = computeInventoryStats();
-  const warning = Number(stats.replacementSoon || stats.warningDevices || localStats.warningDevices || 187);
-  const critical = Number(stats.criticalDevices || localStats.criticalDevices || 12);
+  const warning = Number(stats.replacementSoon ?? stats.warningDevices ?? localStats.warningDevices ?? 0);
+  const critical = Number(stats.criticalDevices ?? localStats.criticalDevices ?? 0);
   alertDonutInst = new Chart(canvas, {
     type: 'doughnut',
     data: {
@@ -737,27 +1137,13 @@ const OS_PLATFORM_LABELS = ['Windows', 'Unknown', 'Mac', 'Other'];
 const OS_PLATFORM_COLORS = ['#e94d67', '#94a3b8', '#4f6df5', '#0d9f6e'];
 const OS_PLATFORM_FALLBACK_DATA = [57, 11, 14, 18];
 
-/** OS doughnut from DB.devices.osDistribution (percent shares), or fallback. */
+/** OS doughnut from inventory inference or DB.devices.osDistribution. */
 function getOsPlatformChartData() {
-  const fallback = { labels: [...OS_PLATFORM_LABELS], data: [...OS_PLATFORM_FALLBACK_DATA] };
   try {
-    if (typeof DB === 'undefined' || DB == null) return fallback;
-    const dev = DB.devices;
-    if (!dev || typeof dev !== 'object') return fallback;
-    const od = dev.osDistribution;
-    if (!od || typeof od !== 'object') return fallback;
-    const data = [
-      Number(od.windows) || 0,
-      Number(od.unknown) || 0,
-      Number(od.mac) || 0,
-      Number(od.other) || 0,
-    ];
-    const total = data.reduce((a, b) => a + b, 0);
-    if (!Number.isFinite(total) || total <= 0) return fallback;
-    return { labels: [...OS_PLATFORM_LABELS], data };
+    return getOsChartSeriesFromData();
   } catch (e) {
-    console.warn('OS chart: getOsPlatformChartData using fallback', e);
-    return fallback;
+    console.warn('OS chart: fallback', e);
+    return { labels: [...OS_PLATFORM_LABELS], data: [...OS_PLATFORM_FALLBACK_DATA] };
   }
 }
 
@@ -858,7 +1244,7 @@ function buildAlertCatChart() {
   if (!ctx) return;
   if (alertCatInst) alertCatInst.destroy();
   const d = chartDefaults();
-  const cat = DB.alertCategories;
+  const cat = computeAlertCategoriesFromTickets(getSafeTickets());
 
   alertCatInst = new Chart(ctx, {
     type: 'bar',
@@ -930,11 +1316,17 @@ function rerenderAnalytics() {
 function rerenderCharts() {
   renderUnifiedKpis();
   void pullDashboardStatsFromApi();
+  updateAlertStatusNumbers();
+  updateOsDevicesTotalLine();
+  renderAvailabilityTable();
   renderDashboardSidePanels();
   rerenderAnalytics();
+  updateSatisfactionFromSla(analyticsRange);
   buildAlertDonut();
   buildOsChart();
   buildAlertCatChart();
+  rebuildLiveNotifications();
+  syncNotifBadge();
 }
 
 try {
@@ -974,17 +1366,71 @@ document.querySelectorAll('.chip[data-analytics-range]').forEach((btn) => {
     btn.classList.add('active');
     analyticsRange = btn.dataset.analyticsRange;
     rerenderAnalytics();
+    updateSatisfactionFromSla(analyticsRange);
   });
 });
 
-// —— Notification panel
-const notifications = [
-  { id: 1, text: 'CPU temperature critical on SRV-WIN-01', time: '2 min ago', unread: true },
-  { id: 2, text: 'VPN tunnel down — Insight Systems', time: '18 min ago', unread: true },
-  { id: 3, text: 'SLA breached on ticket #1535', time: '1h ago', unread: true },
-  { id: 4, text: 'New device connected: MAC-JD-01', time: '3h ago', unread: false },
-  { id: 5, text: 'Monthly budget cap exceeded', time: '5h ago', unread: false },
-];
+const DASHBOARD_POLL_MS = 60000;
+setInterval(() => {
+  if (document.visibilityState === 'visible') scheduleDashboardFullRefresh();
+}, DASHBOARD_POLL_MS);
+
+// —— Notification panel (built from tickets + consumables)
+let notifications = [];
+
+function relTime(ts) {
+  const d = typeof ts === 'number' ? ts : new Date(ts || Date.now()).getTime();
+  const sec = Math.max(0, Math.floor((Date.now() - d) / 1000));
+  if (sec < 60) return 'just now';
+  if (sec < 3600) return `${Math.floor(sec / 60)} min ago`;
+  if (sec < 86400) return `${Math.floor(sec / 3600)}h ago`;
+  return `${Math.floor(sec / 86400)}d ago`;
+}
+
+function rebuildLiveNotifications() {
+  const items = [];
+  const tickets = getSafeTickets();
+  tickets
+    .filter((t) => String(t?.priority || '').toLowerCase() === 'critical' && String(t?.status || '').toLowerCase() !== 'resolved')
+    .slice(0, 4)
+    .forEach((t) => {
+      const ts = ticketCreatedMs(t) || Date.now();
+      items.push({
+        id: `t-${t.id}`,
+        text: `Critical: ${t.title || '#' + t.id}`,
+        time: relTime(ts),
+        unread: true,
+      });
+    });
+  tickets
+    .filter((t) => ticketSlaClassLive(t) === 'breach' && String(t?.status || '').toLowerCase() !== 'resolved')
+    .slice(0, 3)
+    .forEach((t) => {
+      if (items.some((x) => x.id === `t-${t.id}`)) return;
+      const ts = ticketCreatedMs(t) || Date.now();
+      items.push({
+        id: `b-${t.id}`,
+        text: `SLA breach: ${t.title || '#' + t.id}`,
+        time: relTime(ts),
+        unread: true,
+      });
+    });
+  getSafeConsumables()
+    .filter((c) => Number(c?.stockActuel) <= Number(c?.stockMin))
+    .slice(0, 3)
+    .forEach((c) => {
+      items.push({
+        id: `c-${c.id}`,
+        text: `Low stock: ${c.name || c.id}`,
+        time: 'inventory',
+        unread: true,
+      });
+    });
+  if (items.length === 0) {
+    items.push({ id: 'ok', text: 'No urgent alerts right now.', time: 'live', unread: false });
+  }
+  notifications = items;
+}
 
 function syncNotifBadge() {
   const badge = document.getElementById('notif-badge');
@@ -1016,6 +1462,7 @@ function renderNotifPanel() {
     .join('');
 }
 
+rebuildLiveNotifications();
 syncNotifBadge();
 
 document.getElementById('notif-btn')?.addEventListener('click', () => {
@@ -1041,7 +1488,7 @@ document.getElementById('notif-clear')?.addEventListener('click', (e) => {
 });
 
 // —— Command palette
-const cmdItems = [
+const CMD_ITEMS_STATIC = [
   { label: 'Dashboard', type: 'Page', href: 'index.html' },
   { label: 'Tickets', type: 'Page', href: 'tickets.html' },
   { label: 'Devices', type: 'Page', href: 'devices.html' },
@@ -1052,13 +1499,19 @@ const cmdItems = [
   { label: 'Inventory', type: 'Page', href: 'inventory.html' },
   { label: 'Budget', type: 'Page', href: 'budget.html' },
   { label: 'Settings', type: 'Page', href: 'settings.html' },
-  { label: '#1531 Machine status unknown', type: 'Ticket', href: 'tickets.html' },
-  { label: '#1533 CPU temperature', type: 'Ticket', href: 'tickets.html' },
-  { label: '#1535 VPN connection failed', type: 'Ticket', href: 'tickets.html' },
   { label: 'Direction', type: 'Département', href: 'departments.html' },
   { label: 'Médical', type: 'Département', href: 'departments.html' },
   { label: 'SRV-WIN-01', type: 'Device', href: 'devices.html' },
 ];
+
+function getCmdItemsMerged() {
+  const fromTickets = getSafeTickets().slice(0, 12).map((t) => ({
+    label: `#${t.id} ${t.title || 'Ticket'}`,
+    type: 'Ticket',
+    href: 'tickets.html',
+  }));
+  return [...fromTickets, ...CMD_ITEMS_STATIC];
+}
 
 let cmdFiltered = [];
 let cmdSelected = 0;
@@ -1077,6 +1530,7 @@ function renderCmd(query) {
   const resultsEl = document.getElementById('cmd-results');
   if (!resultsEl) return;
   const q = query.toLowerCase().trim();
+  const cmdItems = getCmdItemsMerged();
   cmdFiltered = q ? cmdItems.filter((i) => i.label.toLowerCase().includes(q)) : cmdItems.slice();
   cmdSelected = 0;
   resultsEl.innerHTML =

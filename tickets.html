@@ -143,13 +143,16 @@
         <option value="warn">Warning</option>
         <option value="ok">OK</option>
       </select>
+      <select class="filter-select" id="filter-department">
+        <option value="">All departments</option>
+      </select>
     </div>
 
     <div class="card card-fullwidth" style="padding:0">
       <div class="table-responsive">
       <table class="data-table" style="margin:0">
         <thead>
-          <tr><th>ID</th><th>Details</th><th>Assignee</th><th>Priority</th><th>Status</th><th>SLA</th><th>Action</th></tr>
+          <tr><th>ID</th><th>Details</th><th>Department</th><th>Assignee</th><th>Priority</th><th>Status</th><th>SLA</th><th>Action</th></tr>
         </thead>
         <tbody id="tickets-full-body"></tbody>
       </table>
@@ -174,6 +177,12 @@
         <option value="medium">Medium</option>
         <option value="high">High</option>
         <option value="critical">Critical</option>
+      </select>
+    </div>
+    <div class="form-row">
+      <label for="nt-department">Department</label>
+      <select id="nt-department">
+        <option value="">— Select —</option>
       </select>
     </div>
     <div class="form-row">
@@ -212,6 +221,12 @@
         <option value="open">Open</option>
         <option value="in-progress">In Progress</option>
         <option value="resolved">Resolved</option>
+      </select>
+    </div>
+    <div class="form-row">
+      <label for="et-department">Department</label>
+      <select id="et-department">
+        <option value="">— None —</option>
       </select>
     </div>
     <div class="form-row">
@@ -323,6 +338,27 @@ function fillAssigneeSelect() {
     users.map((u) => `<option value="${u.id}">${u.name}</option>`).join('');
 }
 
+function escDeptOpt(s) {
+  return String(s ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/"/g, '&quot;')
+    .replace(/</g, '&lt;');
+}
+
+function fillDepartmentSelects() {
+  const names = (Array.isArray(DB.departments) ? DB.departments : []).map((d) => d.name).filter(Boolean);
+  const fill = (id, prefixHtml) => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    const v = el.value;
+    el.innerHTML = prefixHtml + names.map((n) => `<option value="${escDeptOpt(n)}">${escDeptOpt(n)}</option>`).join('');
+    if ([...el.options].some((o) => o.value === v)) el.value = v;
+  };
+  fill('filter-department', '<option value="">All departments</option>');
+  fill('nt-department', '<option value="">— Select —</option>');
+  fill('et-department', '<option value="">— None —</option>');
+}
+
 function priorityBadge(p) {
   return `<span class="priority-badge ${p}">${p.charAt(0).toUpperCase()+p.slice(1)}</span>`;
 }
@@ -380,11 +416,18 @@ function assigneeCell(assignedUserId) {
   return `<div class="assignee-cell"><div class="tech-avatar" style="background:${color}" title="${label}">${ini}</div><span class="assignee-name">${label}</span></div>`;
 }
 
+function departmentCell(dept) {
+  const d = String(dept || '').trim();
+  if (!d) return '<span class="ticket-dept" style="color:var(--text-muted)">—</span>';
+  return `<span class="ticket-dept">${escDeptOpt(d)}</span>`;
+}
+
 function renderTickets() {
   const tickets = ticketsStore;
   const search = document.getElementById('ticket-search').value.toLowerCase();
   const pFilter = document.getElementById('filter-priority').value;
   const sFilter = document.getElementById('filter-sla').value;
+  const deptFilter = document.getElementById('filter-department')?.value || '';
 
   let filtered = tickets.filter(t => {
     const slaMeta = ticketSlaMeta(t);
@@ -392,9 +435,10 @@ function renderTickets() {
     if (currentTab === 'in-progress' && String(t.status || '').toLowerCase() !== 'in-progress') return false;
     if (currentTab === 'critical' && t.priority !== 'critical') return false;
     if (currentTab === 'unassigned' && t.assignedUserId) return false;
-    if (search && !t.title.toLowerCase().includes(search) && !String(t.id).includes(search)) return false;
+    if (search && !t.title.toLowerCase().includes(search) && !String(t.id).includes(search) && !String(t.department || '').toLowerCase().includes(search)) return false;
     if (pFilter && t.priority !== pFilter) return false;
     if (sFilter && slaMeta.cls !== sFilter) return false;
+    if (deptFilter && String(t.department || '').trim() !== deptFilter) return false;
     return true;
   });
 
@@ -402,6 +446,7 @@ function renderTickets() {
     <tr>
       <td><span class="ticket-id">#${t.id}</span></td>
       <td class="ticket-name">${t.title}</td>
+      <td>${departmentCell(t.department)}</td>
       <td>${assigneeCell(t.assignedUserId)}</td>
       <td>${priorityBadge(t.priority)}</td>
       <td>${statusBadge(t.status)}</td>
@@ -431,6 +476,7 @@ document.querySelectorAll('.tab').forEach(btn => {
 document.getElementById('ticket-search').addEventListener('input', renderTickets);
 document.getElementById('filter-priority').addEventListener('change', renderTickets);
 document.getElementById('filter-sla').addEventListener('change', renderTickets);
+document.getElementById('filter-department')?.addEventListener('change', renderTickets);
 
 document.getElementById('tickets-full-body').addEventListener('click', (e) => {
   const btn = e.target.closest('[data-edit-id]');
@@ -446,6 +492,11 @@ function openEditTicket(id) {
   document.getElementById('et-status').value = t.status || 'open';
   document.getElementById('et-agent').value =
     t.assignedUserId != null && getUserById(t.assignedUserId) ? String(t.assignedUserId) : '';
+  const etDept = document.getElementById('et-department');
+  if (etDept) {
+    const dn = String(t.department || '').trim();
+    etDept.value = [...etDept.options].some((o) => o.value === dn) ? dn : '';
+  }
   document.getElementById('edit-form-error').textContent = '';
   document.getElementById('edit-ticket-modal').classList.add('open');
 }
@@ -492,6 +543,7 @@ window.saveEditTicket = async function() {
     errEl.textContent = 'Ticket not found.';
     return;
   }
+  const deptVal = document.getElementById('et-department')?.value?.trim() || '';
   const prev = {
     title: t.title,
     priority: t.priority,
@@ -499,11 +551,13 @@ window.saveEditTicket = async function() {
     assignedUserId: t.assignedUserId,
     resolvedAt: t.resolvedAt,
     createdAt: t.createdAt,
+    department: t.department,
   };
   t.title = title;
   t.priority = priority;
   t.status = status;
   t.assignedUserId = assignedUserId;
+  t.department = deptVal || null;
   if (status === 'resolved') {
     if (!t.resolvedAt) t.resolvedAt = isoNow();
   } else {
@@ -535,7 +589,12 @@ window.submitNewTicket = async function() {
   if (errEl) errEl.textContent = '';
   const title = document.getElementById('nt-title').value.trim();
   const priority = document.getElementById('nt-priority').value;
+  const department = document.getElementById('nt-department')?.value?.trim() || '';
   if (!title) return;
+  if (!department) {
+    if (errEl) errEl.textContent = 'Please select a department.';
+    return;
+  }
   const nextId = ticketsStore.reduce((m, x) => Math.max(m, Number(x.id) || 0), 0) + 1;
   const newTicket = {
     id: nextId,
@@ -545,6 +604,7 @@ window.submitNewTicket = async function() {
     sla: '+7d',
     slaClass: 'ok',
     assignedUserId: null,
+    department,
     createdAt: isoNow(),
     resolvedAt: null
   };
@@ -563,6 +623,8 @@ window.submitNewTicket = async function() {
   DB.tickets = ticketsStore;
   document.getElementById('new-ticket-modal').classList.remove('open');
   document.getElementById('nt-title').value = '';
+  const ntDept = document.getElementById('nt-department');
+  if (ntDept) ntDept.value = '';
   renderTickets();
 };
 
@@ -583,11 +645,19 @@ function applyTicketUrlFilters() {
     const sel = document.getElementById('filter-sla');
     if (sel && [...sel.options].some(o => o.value === sla)) sel.value = sla;
   }
+  const dpt = params.get('department');
+  if (dpt) {
+    const sel = document.getElementById('filter-department');
+    if (sel && [...sel.options].some((o) => o.value === dpt)) sel.value = dpt;
+  }
 }
 
 fillAssigneeSelect();
+fillDepartmentSelects();
 applyTicketUrlFilters();
 void hydrateTicketsFromApi().then(() => {
+  fillDepartmentSelects();
+  applyTicketUrlFilters();
   renderTickets();
 });
 document.getElementById('nt-submit')?.addEventListener('click', () => void submitNewTicket());

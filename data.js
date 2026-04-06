@@ -11,16 +11,16 @@ const DB = {
    * Passwords, refresh tokens, and sessions must live server-side only.
    */
   tickets: [
-    { id: 1531, title: "Machine status unknown",      priority: "critical", status: "open",         sla: "+4d", slaClass: "ok",     assignedUserId: null, createdAt: "2026-03-01T09:00:00.000Z", resolvedAt: null },
-    { id: 1532, title: "New employee onboarding",     priority: "low",      status: "open",         sla: "+1h", slaClass: "ok",     assignedUserId: null, createdAt: "2026-03-02T10:15:00.000Z", resolvedAt: null },
-    { id: 1533, title: "CPU temperature",             priority: "critical", status: "in-progress", sla: "+5d", slaClass: "ok",     assignedUserId: null, createdAt: "2026-03-04T08:35:00.000Z", resolvedAt: null },
-    { id: 1553, title: "Fan speed (left side, right side)", priority: "medium", status: "open", sla: "-1h", slaClass: "breach", assignedUserId: null, createdAt: "2026-03-08T11:00:00.000Z", resolvedAt: null },
-    { id: 1534, title: "Disk space low – SRV01",      priority: "high",     status: "in-progress", sla: "+2h", slaClass: "warn",   assignedUserId: 2, createdAt: "2026-03-10T14:40:00.000Z", resolvedAt: null },
-    { id: 1535, title: "VPN connection failed",       priority: "critical", status: "open",         sla: "-22h",slaClass: "breach", assignedUserId: 4, createdAt: "2026-03-14T07:20:00.000Z", resolvedAt: null },
-    { id: 1536, title: "Antivirus out of date",       priority: "medium",   status: "resolved",     sla: "+3d", slaClass: "ok",     assignedUserId: 3, createdAt: "2026-03-18T12:10:00.000Z", resolvedAt: "2026-03-20T16:30:00.000Z" },
-    { id: 1537, title: "Windows update pending",      priority: "low",      status: "open",         sla: "+7d", slaClass: "ok",     assignedUserId: 3, createdAt: "2026-03-22T09:50:00.000Z", resolvedAt: null },
-    { id: 1538, title: "Network switch unresponsive", priority: "critical", status: "in-progress", sla: "-6h", slaClass: "breach", assignedUserId: 4, createdAt: "2026-03-25T13:05:00.000Z", resolvedAt: null },
-    { id: 1539, title: "Email queue backup",          priority: "high",     status: "open",         sla: "-2h", slaClass: "breach", assignedUserId: 2, createdAt: "2026-03-27T15:25:00.000Z", resolvedAt: null },
+    { id: 1531, title: "Machine status unknown",      priority: "critical", status: "open",         sla: "+4d", slaClass: "ok",     assignedUserId: null, department: "IT", createdAt: "2026-03-01T09:00:00.000Z", resolvedAt: null },
+    { id: 1532, title: "New employee onboarding",     priority: "low",      status: "open",         sla: "+1h", slaClass: "ok",     assignedUserId: null, department: "Secretariat", createdAt: "2026-03-02T10:15:00.000Z", resolvedAt: null },
+    { id: 1533, title: "CPU temperature",             priority: "critical", status: "in-progress", sla: "+5d", slaClass: "ok",     assignedUserId: null, department: "IT", createdAt: "2026-03-04T08:35:00.000Z", resolvedAt: null },
+    { id: 1553, title: "Fan speed (left side, right side)", priority: "medium", status: "open", sla: "-1h", slaClass: "breach", assignedUserId: null, department: "Maintenance", createdAt: "2026-03-08T11:00:00.000Z", resolvedAt: null },
+    { id: 1534, title: "Disk space low – SRV01",      priority: "high",     status: "in-progress", sla: "+2h", slaClass: "warn",   assignedUserId: 2, department: "IT", createdAt: "2026-03-10T14:40:00.000Z", resolvedAt: null },
+    { id: 1535, title: "VPN connection failed",       priority: "critical", status: "open",         sla: "-22h",slaClass: "breach", assignedUserId: 4, department: "IT", createdAt: "2026-03-14T07:20:00.000Z", resolvedAt: null },
+    { id: 1536, title: "Antivirus out of date",       priority: "medium",   status: "resolved",     sla: "+3d", slaClass: "ok",     assignedUserId: 3, department: "Médical", createdAt: "2026-03-18T12:10:00.000Z", resolvedAt: "2026-03-20T16:30:00.000Z" },
+    { id: 1537, title: "Windows update pending",      priority: "low",      status: "open",         sla: "+7d", slaClass: "ok",     assignedUserId: 3, department: "Facturation", createdAt: "2026-03-22T09:50:00.000Z", resolvedAt: null },
+    { id: 1538, title: "Network switch unresponsive", priority: "critical", status: "in-progress", sla: "-6h", slaClass: "breach", assignedUserId: 4, department: "IT", createdAt: "2026-03-25T13:05:00.000Z", resolvedAt: null },
+    { id: 1539, title: "Email queue backup",          priority: "high",     status: "open",         sla: "-2h", slaClass: "breach", assignedUserId: 2, department: "Finance & Comptabilité", createdAt: "2026-03-27T15:25:00.000Z", resolvedAt: null },
   ],
 
   departments: [
