@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>DiaTech – Reports</title>
+  <link rel="stylesheet" href="styles.css"/>
+  <link rel="preconnect" href="https://fonts.googleapis.com"/>
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+  <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,600&display=swap" rel="stylesheet"/>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.2/dist/chart.umd.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+</head>
+<body>
+<script src="data.js"></script>
+<script src="i18n.js"></script>
+<script src="auth.js"></script>
+<script src="api-client.js"></script>
+<script>Auth.guard();</script>
+<aside class="sidebar">
+  <div class="sidebar-logo">
+    <span class="logo-mark">
+      <img src="assets/sidebar-logo.png" alt="DiaTech" decoding="async"
+        style="width:100%;height:100%;object-fit:contain;border-radius:8px;" />
+    </span>
+    <span class="logo-text">DiaTech</span>
+  </div>
+  <nav class="sidebar-nav">
+    <a href="index.html" class="nav-item"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg><span>Dashboard</span></a>
+    <a href="tickets.html" class="nav-item"><svg viewBox="0 0 24 24"><path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/></svg><span>Tickets</span></a>
+    <a href="departments.html" class="nav-item"><svg viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/></svg><span>Départements</span></a>
+    <a href="devices.html" class="nav-item"><svg viewBox="0 0 24 24"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg><span>Devices</span></a>
+    <a href="inventory.html" class="nav-item"><svg viewBox="0 0 24 24"><path d="M21 16V8a2 2 0 00-1-1.73l-7-4a2 2 0 00-2 0l-7 4A2 2 0 003 8v8a2 2 0 001 1.73l7 4a2 2 0 002 0l7-4A2 2 0 0021 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg><span>Inventory</span></a>
+    <a href="budget.html" class="nav-item"><svg viewBox="0 0 24 24"><rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/></svg><span>Budget</span></a>
+    <a href="alerts.html" class="nav-item"><svg viewBox="0 0 24 24"><path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9M13.73 21a2 2 0 01-3.46 0"/></svg><span>Alerts</span></a>
+    <a href="reports.html" class="nav-item active"><svg viewBox="0 0 24 24"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg><span>Reports</span></a>
+    <a href="it-analytics.html" class="nav-item"><svg viewBox="0 0 24 24"><path d="M3 3v18h18"/><path d="M7 16V8"/><path d="M12 16v-5"/><path d="M17 16v-9"/></svg><span>Analytics</span></a>
+  </nav>
+  <div class="sidebar-footer sidebar-footer--auth">
+    <div class="sidebar-avatar">··</div>
+    <button type="button" class="sidebar-logout auth-logout-btn" title="Déconnexion">Déconnexion</button>
+  </div>
+</aside>
+<script src="sidebar-nav.js"></script>
+<script src="topbar-user-menu.js"></script>
+<script src="page-polish.js"></script>
+<main class="main-content">
+  <div class="container">
+  <header class="topbar header">
+    <div class="topbar-left header-left"><h1 class="page-title">Reports</h1></div>
+    
+  </header>
+  <div class="content-pad">
+
+    <!-- Report toolbar -->
+    <div class="report-toolbar">
+      <div class="report-toolbar-left">
+        <div class="report-period-group">
+          <label class="report-period-label">Period</label>
+          <div class="card-actions">
+            <button type="button" class="chip" data-period="7d">7 days</button>
+            <button type="button" class="chip active" data-period="30d">30 days</button>
+            <button type="button" class="chip" data-period="90d">Quarter</button>
+            <button type="button" class="chip" data-period="1y">Year</button>
+          </div>
+        </div>
+      </div>
+      <div class="report-toolbar-right">
+        <button type="button" class="btn-secondary" id="btn-export-csv">
+          <svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+          Export CSV
+        </button>
+        <button type="button" class="btn-secondary" id="btn-export-xlsx">
+          <svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+          Export Excel
+        </button>
+        <button type="button" class="btn-primary" id="btn-export-pdf">
+          <svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+          Download PDF
+        </button>
+      </div>
+    </div>
+
+    <!-- Decision KPIs -->
+    <div class="report-kpi-grid" id="report-kpis"></div>
+
+    <!-- Decision insight banners -->
+    <div class="report-insights" id="report-insights"></div>
+
+    <!-- Technician SLA ranking -->
+    <div class="card card-fullwidth" style="margin-bottom:var(--layout-gap)">
+      <div class="card-header">
+        <h2>Technician SLA ranking</h2>
+        <span class="chart-hint">Compliance based on yearly SLA policy</span>
+      </div>
+      <div class="table-responsive">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>Technician</th>
+              <th>Resolved</th>
+              <th>SLA Met %</th>
+              <th>Avg Resolution (h)</th>
+              <th>Score</th>
+            </tr>
+          </thead>
+          <tbody id="sla-tech-ranking-body"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Charts row 1: Volume + Resolution -->
+    <div class="dashboard-grid-cq">
+    <div class="dashboard-grid" style="grid-template-columns:1fr 1fr;">
+      <div class="card">
+        <div class="card-header">
+          <h2>Ticket Volume</h2>
+          <span class="chart-hint">Daily tickets opened vs resolved</span>
+        </div>
+        <div class="report-chart-wrap">
+          <canvas id="rptVolume"></canvas>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-header">
+          <h2>Resolution Time by Département</h2>
+          <span class="chart-hint">Avg hours to close a ticket</span>
+        </div>
+        <div class="report-chart-wrap">
+          <canvas id="rptResolution"></canvas>
+        </div>
+      </div>
+    </div>
+    </div>
+
+    <!-- Charts row 2: SLA trend + Priority breakdown -->
+    <div class="dashboard-grid-cq" style="margin-top: var(--layout-gap);">
+    <div class="dashboard-grid" style="grid-template-columns:2fr 1fr;">
+      <div class="card">
+        <div class="card-header">
+          <h2>SLA Compliance Trend</h2>
+          <span class="chart-hint">% tickets meeting SLA per week</span>
+        </div>
+        <div class="report-chart-wrap">
+          <canvas id="rptSla"></canvas>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-header">
+          <h2>Tickets by Priority</h2>
+          <span class="chart-hint">Distribution this period</span>
+        </div>
+        <div class="report-chart-wrap">
+          <canvas id="rptPriority"></canvas>
+        </div>
+      </div>
+    </div>
+    </div>
+
+    <!-- Charts row 3: Technician performance + First contact resolution -->
+    <div class="dashboard-grid-cq" style="margin-top: var(--layout-gap);">
+    <div class="dashboard-grid" style="grid-template-columns:1fr 1fr;">
+      <div class="card">
+        <div class="card-header">
+          <h2>Technician Performance</h2>
+          <span class="chart-hint">Tickets closed per technician</span>
+        </div>
+        <div class="report-chart-wrap">
+          <canvas id="rptTech"></canvas>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-header">
+          <h2>First Contact Resolution</h2>
+          <span class="chart-hint">% resolved without reopening</span>
+        </div>
+        <div class="report-chart-wrap">
+          <canvas id="rptFcr"></canvas>
+        </div>
+      </div>
+    </div>
+    </div>
+
+    <!-- Monthly Summary table (downloadable) -->
+    <div class="card card-fullwidth" style="margin-top:var(--layout-gap)" id="report-table-card">
+      <div class="card-header">
+        <h2>Monthly Summary</h2>
+        <button type="button" class="btn-secondary" id="btn-export-table-csv" style="font-size:11px">Export table CSV</button>
+      </div>
+      <div class="table-responsive">
+        <table class="data-table" id="monthly-table">
+          <thead>
+            <tr>
+              <th>Month</th>
+              <th>Opened</th>
+              <th>Resolved</th>
+              <th>Resolution Rate</th>
+              <th>Avg SLA (h)</th>
+              <th>SLA Met %</th>
+              <th>Critical</th>
+              <th>CSAT</th>
+              <th>Trend</th>
+            </tr>
+          </thead>
+          <tbody id="monthly-tbody"></tbody>
+        </table>
+      </div>
+    </div>
+
+  </div>
+  </div>
+</main>
+<script src="reports.js"></script>
+</body>
+</html>
+
+
+
+
+
+

@@ -1,0 +1,1133 @@
+{
+  "inventory": [
+    {
+      "id": "PC-001",
+      "name": "Lenovo T490",
+      "category": "Ordinateur",
+      "department": "",
+      "location": "Villa Covid",
+      "assignedUser": "David-Adrien",
+      "condition": "moyen",
+      "acquisitionYear": 2023,
+      "replacementYear": 2026,
+      "status": "in-use",
+      "lifecycle": "assignment",
+      "specs": "i7 / 16Go / 500Go",
+      "type": "Laptop"
+    },
+    {
+      "id": "PC-002",
+      "name": "Lenovo T460",
+      "category": "Ordinateur",
+      "department": "",
+      "location": "Villa Covid",
+      "assignedUser": "Chanelle",
+      "condition": "mauvais",
+      "acquisitionYear": 2023,
+      "replacementYear": 2025,
+      "status": "in-use",
+      "lifecycle": "assignment",
+      "specs": "i5 / 8Go / 500Go",
+      "type": "Laptop"
+    },
+    {
+      "id": "PC-003",
+      "name": "HP 250 G6",
+      "category": "Ordinateur",
+      "department": "Facturation",
+      "location": "Villa Covid",
+      "assignedUser": "Omer",
+      "condition": "bon",
+      "acquisitionYear": 0,
+      "replacementYear": 2027,
+      "status": "in-use",
+      "lifecycle": "assignment",
+      "specs": "Celeron / 4Go / 500Go",
+      "type": "Laptop"
+    },
+    {
+      "id": "PC-004",
+      "name": "HP 250 G7",
+      "category": "Ordinateur",
+      "department": "Facturation",
+      "location": "Villa Covid",
+      "assignedUser": "Benjamin",
+      "condition": "moyen",
+      "acquisitionYear": 0,
+      "replacementYear": 2026,
+      "status": "in-use",
+      "lifecycle": "assignment",
+      "specs": "i5 / 8Go / 1To",
+      "type": "Laptop"
+    },
+    {
+      "id": "PC-005",
+      "name": "Lenovo T460",
+      "category": "Ordinateur",
+      "department": "Facturation",
+      "location": "Villa Covid",
+      "assignedUser": "Derick",
+      "condition": "bon",
+      "acquisitionYear": 2023,
+      "replacementYear": 2027,
+      "status": "in-use",
+      "lifecycle": "assignment",
+      "specs": "i5 / 16Go / 1To",
+      "type": "Laptop"
+    },
+    {
+      "id": "PC-006",
+      "name": "Lenovo",
+      "category": "Ordinateur",
+      "department": "Facturation",
+      "location": "Villa Covid",
+      "assignedUser": "Jean-Nickel",
+      "condition": "bon",
+      "acquisitionYear": 2024,
+      "replacementYear": 2029,
+      "status": "in-use",
+      "lifecycle": "assignment",
+      "specs": "/ /",
+      "type": "Laptop"
+    },
+    {
+      "id": "PC-007",
+      "name": "Lenovo",
+      "category": "Ordinateur",
+      "department": "",
+      "location": "Villa Covid",
+      "assignedUser": "Dorcas",
+      "condition": "moyen",
+      "acquisitionYear": 0,
+      "replacementYear": 2025,
+      "status": "in-use",
+      "lifecycle": "assignment",
+      "specs": "/ /",
+      "type": "Laptop"
+    },
+    {
+      "id": "PC-008",
+      "name": "Lenovo 82NB",
+      "category": "Ordinateur",
+      "department": "",
+      "location": "Rez-de-chaussee",
+      "assignedUser": "-",
+      "condition": "bon",
+      "acquisitionYear": 2023,
+      "replacementYear": 2026,
+      "status": "in-use",
+      "lifecycle": "assignment",
+      "specs": "i5 / 8Go / 1To",
+      "type": "Laptop"
+    },
+    {
+      "id": "PC-009",
+      "name": "HP Notebook 250 G8",
+      "category": "Ordinateur",
+      "department": "",
+      "location": "Rez-de-chaussee",
+      "assignedUser": "Dr. Jeremy",
+      "condition": "bon",
+      "acquisitionYear": 2024,
+      "replacementYear": 2027,
+      "status": "in-use",
+      "lifecycle": "assignment",
+      "specs": "i5 / 16Go / 500Go",
+      "type": "Laptop"
+    },
+    {
+      "id": "PC-010",
+      "name": "Lenovo",
+      "category": "Ordinateur",
+      "department": "",
+      "location": "Rez-de-chaussee",
+      "assignedUser": "Dr. Mabo",
+      "condition": "bon",
+      "acquisitionYear": 0,
+      "replacementYear": 2027,
+      "status": "in-use",
+      "lifecycle": "assignment",
+      "specs": "Celeron / 4Go / 500Go",
+      "type": "Desktop"
+    },
+    {
+      "id": "PC-011",
+      "name": "HP Laptop-15s",
+      "category": "Ordinateur",
+      "department": "",
+      "location": "Rez-de-chaussee",
+      "assignedUser": "-",
+      "condition": "bon",
+      "acquisitionYear": 0,
+      "replacementYear": 2027,
+      "status": "in-use",
+      "lifecycle": "assignment",
+      "specs": "i5 / 8Go / 500Go",
+      "type": "Laptop"
+    },
+    {
+      "id": "PC-012",
+      "name": "Lenovo",
+      "category": "Ordinateur",
+      "department": "",
+      "location": "Rez-de-chaussee",
+      "assignedUser": "-",
+      "condition": "bon",
+      "acquisitionYear": 0,
+      "replacementYear": 2027,
+      "status": "in-use",
+      "lifecycle": "assignment",
+      "specs": "Celeron / 4Go / 500Go",
+      "type": "Laptop"
+    },
+    {
+      "id": "IMP-001",
+      "name": "HP Laser MFP 137fnw",
+      "category": "Imprimante",
+      "department": "Facturation",
+      "location": "Villa Covid",
+      "assignedUser": "-",
+      "condition": "bon",
+      "acquisitionYear": 2024,
+      "replacementYear": 2027,
+      "status": "in-use",
+      "lifecycle": "assignment",
+      "specs": "Laser MFP",
+      "type": "Imprimante"
+    },
+    {
+      "id": "IMP-002",
+      "name": "Samsung M2070",
+      "category": "Imprimante",
+      "department": "",
+      "location": "Villa Covid",
+      "assignedUser": "-",
+      "condition": "mauvais",
+      "acquisitionYear": 0,
+      "replacementYear": 2025,
+      "status": "in-use",
+      "lifecycle": "maintenance",
+      "specs": "Laser",
+      "type": "Imprimante"
+    },
+    {
+      "id": "IMP-003",
+      "name": "Samsung M2070",
+      "category": "Imprimante",
+      "department": "",
+      "location": "Rez-de-chaussee",
+      "assignedUser": "-",
+      "condition": "mauvais",
+      "acquisitionYear": 0,
+      "replacementYear": 2025,
+      "status": "in-use",
+      "lifecycle": "maintenance",
+      "specs": "Laser",
+      "type": "Imprimante"
+    },
+    {
+      "id": "IMP-004",
+      "name": "Samsung M2070",
+      "category": "Imprimante",
+      "department": "",
+      "location": "Rez-de-chaussee",
+      "assignedUser": "-",
+      "condition": "moyen",
+      "acquisitionYear": 0,
+      "replacementYear": 2025,
+      "status": "in-use",
+      "lifecycle": "assignment",
+      "specs": "Laser",
+      "type": "Imprimante"
+    },
+    {
+      "id": "IMP-005",
+      "name": "Canon ImageRUNNER 2206N",
+      "category": "Imprimante",
+      "department": "Secretariat",
+      "location": "Rez-de-chaussee",
+      "assignedUser": "-",
+      "condition": "mauvais",
+      "acquisitionYear": 2022,
+      "replacementYear": 2026,
+      "status": "retired",
+      "lifecycle": "assignment",
+      "specs": "Laser MFP",
+      "type": "Imprimante"
+    },
+    {
+      "id": "IMP-006",
+      "name": "Canon ImageRUNNER 2206N",
+      "category": "Imprimante",
+      "department": "Project Management",
+      "location": "Rez-de-chaussee",
+      "assignedUser": "-",
+      "condition": "bon",
+      "acquisitionYear": 2022,
+      "replacementYear": 2025,
+      "status": "in-use",
+      "lifecycle": "maintenance",
+      "specs": "Laser MFP",
+      "type": "Imprimante"
+    },
+    {
+      "id": "IMP-007",
+      "name": "Samsung M2071",
+      "category": "Imprimante",
+      "department": "",
+      "location": "Rez-de-chaussee",
+      "assignedUser": "-",
+      "condition": "moyen",
+      "acquisitionYear": 0,
+      "replacementYear": 2025,
+      "status": "in-use",
+      "lifecycle": "assignment",
+      "specs": "Laser",
+      "type": "Imprimante"
+    },
+    {
+      "id": "IMP-008",
+      "name": "Canon ImageRUNNER 2206N",
+      "category": "Imprimante",
+      "department": "Secretariat",
+      "location": "Premier niveau",
+      "assignedUser": "-",
+      "condition": "bon",
+      "acquisitionYear": 2022,
+      "replacementYear": 2027,
+      "status": "in-use",
+      "lifecycle": "assignment",
+      "specs": "Laser MFP",
+      "type": "Imprimante"
+    },
+    {
+      "id": "IMP-009",
+      "name": "Samsung M2070",
+      "category": "Imprimante",
+      "department": "",
+      "location": "Premier niveau",
+      "assignedUser": "-",
+      "condition": "moyen",
+      "acquisitionYear": 0,
+      "replacementYear": 2025,
+      "status": "in-use",
+      "lifecycle": "assignment",
+      "specs": "Laser",
+      "type": "Imprimante"
+    },
+    {
+      "id": "IMP-010",
+      "name": "Samsung M2070",
+      "category": "Imprimante",
+      "department": "",
+      "location": "Premier niveau",
+      "assignedUser": "-",
+      "condition": "moyen",
+      "acquisitionYear": 0,
+      "replacementYear": 2025,
+      "status": "in-use",
+      "lifecycle": "assignment",
+      "specs": "Laser",
+      "type": "Imprimante"
+    },
+    {
+      "id": "IMP-011",
+      "name": "Samsung M2070",
+      "category": "Imprimante",
+      "department": "",
+      "location": "Premier niveau",
+      "assignedUser": "-",
+      "condition": "bon",
+      "acquisitionYear": 2022,
+      "replacementYear": 2027,
+      "status": "in-use",
+      "lifecycle": "assignment",
+      "specs": "Laser",
+      "type": "Imprimante"
+    },
+    {
+      "id": "IMP-012",
+      "name": "Canon ImageRUNNER 2206N",
+      "category": "Imprimante",
+      "department": "",
+      "location": "Deuxieme niveau",
+      "assignedUser": "-",
+      "condition": "bon",
+      "acquisitionYear": 2022,
+      "replacementYear": 2027,
+      "status": "in-use",
+      "lifecycle": "assignment",
+      "specs": "Laser MFP",
+      "type": "Imprimante"
+    },
+    {
+      "id": "TAB-001",
+      "name": "Tablette double face 1",
+      "category": "Tablette",
+      "department": "Secretariat",
+      "location": "Rez-de-chaussee",
+      "assignedUser": "-",
+      "condition": "bon",
+      "acquisitionYear": 0,
+      "replacementYear": 2027,
+      "status": "in-use",
+      "lifecycle": "assignment",
+      "specs": "Android",
+      "type": "Tablette"
+    },
+    {
+      "id": "TAB-002",
+      "name": "Tablette double face 2",
+      "category": "Tablette",
+      "department": "Secretariat",
+      "location": "Rez-de-chaussee",
+      "assignedUser": "-",
+      "condition": "bon",
+      "acquisitionYear": 0,
+      "replacementYear": 2027,
+      "status": "in-use",
+      "lifecycle": "assignment",
+      "specs": "Android",
+      "type": "Tablette"
+    },
+    {
+      "id": "TAB-003",
+      "name": "Tablette iPad",
+      "category": "Tablette",
+      "department": "Secretariat",
+      "location": "Rez-de-chaussee",
+      "assignedUser": "-",
+      "condition": "bon",
+      "acquisitionYear": 0,
+      "replacementYear": 2027,
+      "status": "in-use",
+      "lifecycle": "assignment",
+      "specs": "iPadOS",
+      "type": "Tablette"
+    },
+    {
+      "id": "TAB-004",
+      "name": "Tablette iPad",
+      "category": "Tablette",
+      "department": "",
+      "location": "Rez-de-chaussee",
+      "assignedUser": "-",
+      "condition": "bon",
+      "acquisitionYear": 0,
+      "replacementYear": 2027,
+      "status": "in-use",
+      "lifecycle": "assignment",
+      "specs": "iPadOS",
+      "type": "Tablette"
+    },
+    {
+      "id": "TAB-005",
+      "name": "Tablette iPad",
+      "category": "Tablette",
+      "department": "",
+      "location": "Rez-de-chaussee",
+      "assignedUser": "-",
+      "condition": "bon",
+      "acquisitionYear": 0,
+      "replacementYear": 2030,
+      "status": "in-use",
+      "lifecycle": "assignment",
+      "specs": "iPadOS",
+      "type": "Tablette"
+    },
+    {
+      "id": "TAB-006",
+      "name": "iPad Pro x2",
+      "category": "Tablette",
+      "department": "",
+      "location": "Stock IT",
+      "assignedUser": "-",
+      "condition": "bon",
+      "acquisitionYear": 0,
+      "replacementYear": 0,
+      "status": "in-stock",
+      "lifecycle": "purchase",
+      "specs": "iPadOS",
+      "type": "Tablette"
+    },
+    {
+      "id": "DYM-001",
+      "name": "Dymo 1",
+      "category": "Dymo",
+      "department": "Pharmacie",
+      "location": "Rez-de-chaussee",
+      "assignedUser": "-",
+      "condition": "mauvais",
+      "acquisitionYear": 0,
+      "replacementYear": 2024,
+      "status": "in-use",
+      "lifecycle": "maintenance",
+      "specs": "Etiqueteuse",
+      "type": "Dymo"
+    },
+    {
+      "id": "DYM-002",
+      "name": "Dymo 2",
+      "category": "Dymo",
+      "department": "Pharmacie",
+      "location": "Rez-de-chaussee",
+      "assignedUser": "-",
+      "condition": "bon",
+      "acquisitionYear": 2024,
+      "replacementYear": 2027,
+      "status": "in-use",
+      "lifecycle": "assignment",
+      "specs": "Etiqueteuse",
+      "type": "Dymo"
+    },
+    {
+      "id": "DYM-003",
+      "name": "Dymo",
+      "category": "Dymo",
+      "department": "",
+      "location": "Rez-de-chaussee",
+      "assignedUser": "-",
+      "condition": "moyen",
+      "acquisitionYear": 0,
+      "replacementYear": 2026,
+      "status": "in-use",
+      "lifecycle": "assignment",
+      "specs": "Etiqueteuse",
+      "type": "Dymo"
+    },
+    {
+      "id": "DYM-004",
+      "name": "Dymo",
+      "category": "Dymo",
+      "department": "",
+      "location": "Rez-de-chaussee",
+      "assignedUser": "-",
+      "condition": "moyen",
+      "acquisitionYear": 0,
+      "replacementYear": 2026,
+      "status": "in-use",
+      "lifecycle": "assignment",
+      "specs": "Etiqueteuse",
+      "type": "Dymo"
+    },
+    {
+      "id": "DYM-005",
+      "name": "Dymo",
+      "category": "Dymo",
+      "department": "",
+      "location": "Premier niveau",
+      "assignedUser": "-",
+      "condition": "moyen",
+      "acquisitionYear": 0,
+      "replacementYear": 2026,
+      "status": "in-use",
+      "lifecycle": "assignment",
+      "specs": "Etiqueteuse",
+      "type": "Dymo"
+    },
+    {
+      "id": "DYM-006",
+      "name": "Dymo",
+      "category": "Dymo",
+      "department": "Dialyse",
+      "location": "Deuxieme niveau",
+      "assignedUser": "-",
+      "condition": "moyen",
+      "acquisitionYear": 0,
+      "replacementYear": 2026,
+      "status": "in-use",
+      "lifecycle": "assignment",
+      "specs": "Etiqueteuse",
+      "type": "Dymo"
+    },
+    {
+      "id": "CIS-001",
+      "name": "CISCO IP Phone",
+      "category": "Telephone CISCO",
+      "department": "",
+      "location": "Rez-de-chaussee",
+      "assignedUser": "-",
+      "condition": "moyen",
+      "acquisitionYear": 0,
+      "replacementYear": 2025,
+      "status": "in-use",
+      "lifecycle": "assignment",
+      "specs": "Poste 9109",
+      "type": "Telephone fixe"
+    },
+    {
+      "id": "CIS-002",
+      "name": "CISCO IP Phone",
+      "category": "Telephone CISCO",
+      "department": "",
+      "location": "Rez-de-chaussee",
+      "assignedUser": "-",
+      "condition": "moyen",
+      "acquisitionYear": 0,
+      "replacementYear": 2025,
+      "status": "in-use",
+      "lifecycle": "assignment",
+      "specs": "Poste 9106",
+      "type": "Telephone fixe"
+    },
+    {
+      "id": "CIS-003",
+      "name": "CISCO IP Phone",
+      "category": "Telephone CISCO",
+      "department": "",
+      "location": "Rez-de-chaussee",
+      "assignedUser": "-",
+      "condition": "moyen",
+      "acquisitionYear": 0,
+      "replacementYear": 2025,
+      "status": "in-use",
+      "lifecycle": "assignment",
+      "specs": "Poste 9300",
+      "type": "Telephone fixe"
+    },
+    {
+      "id": "CIS-004",
+      "name": "CISCO IP Phone",
+      "category": "Telephone CISCO",
+      "department": "Pharmacie",
+      "location": "Rez-de-chaussee",
+      "assignedUser": "-",
+      "condition": "moyen",
+      "acquisitionYear": 0,
+      "replacementYear": 2025,
+      "status": "in-use",
+      "lifecycle": "assignment",
+      "specs": "Poste 9105",
+      "type": "Telephone fixe"
+    },
+    {
+      "id": "CIS-005",
+      "name": "CISCO IP Phone",
+      "category": "Telephone CISCO",
+      "department": "",
+      "location": "Rez-de-chaussee",
+      "assignedUser": "-",
+      "condition": "moyen",
+      "acquisitionYear": 0,
+      "replacementYear": 2025,
+      "status": "in-use",
+      "lifecycle": "assignment",
+      "specs": "Poste 9507",
+      "type": "Telephone fixe"
+    },
+    {
+      "id": "CIS-006",
+      "name": "Cisco ISR DAC",
+      "category": "Téléphone CISCO",
+      "department": "Facilities Management",
+      "location": "Villa Covid",
+      "assignedUser": "David-Adrien",
+      "condition": "bon",
+      "acquisitionYear": 2026,
+      "replacementYear": 2031,
+      "status": "in-use",
+      "lifecycle": "purchase",
+      "specs": "Laser MFP",
+      "type": "Téléphone"
+    },
+    {
+      "id": "PC-013",
+      "name": "Max1",
+      "category": "Ordinateur",
+      "department": "Facilities Management",
+      "location": "Datacenter Rack A4",
+      "assignedUser": "David-Adrien",
+      "condition": "bon",
+      "acquisitionYear": 2026,
+      "replacementYear": 2030,
+      "status": "in-use",
+      "lifecycle": "assignment",
+      "specs": "i7 / 16Go / 500Go",
+      "type": "Laptop"
+    }
+  ],
+  "consumables": [
+    {
+      "id": "CON-001",
+      "name": "Samsung 111S",
+      "category": "Cartouche",
+      "stockActuel": 5,
+      "stockMin": 3,
+      "unit": "unite",
+      "dernierMouvement": "2026-04-04",
+      "fournisseur": "Smartcom"
+    },
+    {
+      "id": "CON-002",
+      "name": "Canon C-EXV 42",
+      "category": "Cartouche",
+      "stockActuel": 5,
+      "stockMin": 3,
+      "unit": "unite",
+      "dernierMouvement": "2026-04-04",
+      "fournisseur": "Smartcom"
+    },
+    {
+      "id": "CON-003",
+      "name": "HP 307A Jaune",
+      "category": "Cartouche",
+      "stockActuel": 2,
+      "stockMin": 1,
+      "unit": "unite",
+      "dernierMouvement": "2024-07-10",
+      "fournisseur": "Smartcom"
+    },
+    {
+      "id": "CON-004",
+      "name": "HP 307A Magenta",
+      "category": "Cartouche",
+      "stockActuel": 2,
+      "stockMin": 1,
+      "unit": "unite",
+      "dernierMouvement": "2024-07-10",
+      "fournisseur": "Smartcom"
+    },
+    {
+      "id": "CON-005",
+      "name": "HP 307A Bleu",
+      "category": "Cartouche",
+      "stockActuel": 2,
+      "stockMin": 1,
+      "unit": "unite",
+      "dernierMouvement": "2024-07-10",
+      "fournisseur": "Smartcom"
+    },
+    {
+      "id": "CON-006",
+      "name": "HP 307A Noir",
+      "category": "Cartouche",
+      "stockActuel": 1,
+      "stockMin": 2,
+      "unit": "unite",
+      "dernierMouvement": "2026-04-04",
+      "fournisseur": "Smartcom"
+    },
+    {
+      "id": "CON-007",
+      "name": "Papier Dymo",
+      "category": "Papier Dymo",
+      "stockActuel": 18,
+      "stockMin": 10,
+      "unit": "rouleau",
+      "dernierMouvement": "2024-11-20",
+      "fournisseur": "-"
+    }
+  ],
+  "consumableLogs": [
+    {
+      "date": "2024-05-20",
+      "type": "sortie",
+      "item": "Samsung 111S",
+      "qty": 1,
+      "department": "Facturation",
+      "stock": 8,
+      "note": ""
+    },
+    {
+      "date": "2024-05-29",
+      "type": "sortie",
+      "item": "HP 307A Noir",
+      "qty": 1,
+      "department": "Imagerie",
+      "stock": 0,
+      "note": "Stock vide"
+    },
+    {
+      "date": "2024-06-03",
+      "type": "sortie",
+      "item": "Canon C-EXV 42",
+      "qty": 1,
+      "department": "Printer RDC",
+      "stock": 1,
+      "note": ""
+    },
+    {
+      "date": "2024-06-10",
+      "type": "sortie",
+      "item": "Samsung 111S",
+      "qty": 1,
+      "department": "Reception Pharmacie",
+      "stock": 6,
+      "note": ""
+    },
+    {
+      "date": "2024-06-11",
+      "type": "sortie",
+      "item": "Samsung 111S",
+      "qty": 1,
+      "department": "ICU",
+      "stock": 5,
+      "note": ""
+    },
+    {
+      "date": "2024-06-20",
+      "type": "entree",
+      "item": "Canon C-EXV 42",
+      "qty": 1,
+      "department": "-",
+      "stock": 2,
+      "note": "Test USCT"
+    },
+    {
+      "date": "2024-06-24",
+      "type": "entree",
+      "item": "Canon C-EXV 42",
+      "qty": 12,
+      "department": "-",
+      "stock": 14,
+      "note": "Achat Smartcom"
+    },
+    {
+      "date": "2024-06-24",
+      "type": "entree",
+      "item": "HP 307A Noir",
+      "qty": 4,
+      "department": "-",
+      "stock": 4,
+      "note": "Achat Smartcom"
+    },
+    {
+      "date": "2024-07-05",
+      "type": "sortie",
+      "item": "Samsung 111S",
+      "qty": 1,
+      "department": "Reception Pharmacie",
+      "stock": 4,
+      "note": ""
+    },
+    {
+      "date": "2024-07-17",
+      "type": "sortie",
+      "item": "Samsung 111S",
+      "qty": 1,
+      "department": "ICU",
+      "stock": 2,
+      "note": ""
+    }
+  ],
+  "tickets": [
+    {
+      "id": 1531,
+      "title": "Machine status unknown",
+      "priority": "critical",
+      "status": "open",
+      "sla": "+4d",
+      "slaClass": "ok",
+      "assignedUserId": 3,
+      "createdAt": "2026-03-01T09:00:00.000Z",
+      "resolvedAt": null
+    },
+    {
+      "id": 1532,
+      "title": "New employee onboarding",
+      "priority": "low",
+      "status": "resolved",
+      "sla": "+1h",
+      "slaClass": "ok",
+      "assignedUserId": 4,
+      "createdAt": "2026-03-02T10:15:00.000Z",
+      "resolvedAt": "2026-03-02T15:10:00.000Z"
+    },
+    {
+      "id": 1533,
+      "title": "CPU temperature",
+      "priority": "critical",
+      "status": "resolved",
+      "sla": "+5d",
+      "slaClass": "ok",
+      "assignedUserId": 2,
+      "createdAt": "2026-03-04T08:35:00.000Z",
+      "resolvedAt": "2026-03-06T13:20:00.000Z"
+    },
+    {
+      "id": 1553,
+      "title": "Fan speed (left side, right side)",
+      "priority": "medium",
+      "status": "resolved",
+      "sla": "-1h",
+      "slaClass": "breach",
+      "assignedUserId": 1,
+      "createdAt": "2026-03-08T11:00:00.000Z",
+      "resolvedAt": "2026-03-09T09:45:00.000Z"
+    },
+    {
+      "id": 1534,
+      "title": "Disk space low – SRV01",
+      "priority": "high",
+      "status": "in-progress",
+      "sla": "+2h",
+      "slaClass": "warn",
+      "assignedUserId": 2,
+      "createdAt": "2026-03-10T14:40:00.000Z",
+      "resolvedAt": null
+    },
+    {
+      "id": 1535,
+      "title": "VPN connection failed",
+      "priority": "critical",
+      "status": "open",
+      "sla": "-22h",
+      "slaClass": "breach",
+      "assignedUserId": 4,
+      "createdAt": "2026-03-14T07:20:00.000Z",
+      "resolvedAt": null
+    },
+    {
+      "id": 1536,
+      "title": "Antivirus out of date",
+      "priority": "medium",
+      "status": "resolved",
+      "sla": "+3d",
+      "slaClass": "ok",
+      "assignedUserId": 3,
+      "createdAt": "2026-03-18T12:10:00.000Z",
+      "resolvedAt": "2026-03-20T16:30:00.000Z"
+    },
+    {
+      "id": 1537,
+      "title": "Windows update pending",
+      "priority": "low",
+      "status": "open",
+      "sla": "+7d",
+      "slaClass": "ok",
+      "assignedUserId": 3,
+      "createdAt": "2026-03-22T09:50:00.000Z",
+      "resolvedAt": null
+    },
+    {
+      "id": 1538,
+      "title": "Network switch unresponsive",
+      "priority": "critical",
+      "status": "resolved",
+      "sla": "-6h",
+      "slaClass": "breach",
+      "assignedUserId": 4,
+      "createdAt": "2026-03-25T13:05:00.000Z",
+      "resolvedAt": "2026-04-04T11:14:22.772Z"
+    },
+    {
+      "id": 1539,
+      "title": "Email queue backup",
+      "priority": "high",
+      "status": "open",
+      "sla": "-2h",
+      "slaClass": "breach",
+      "assignedUserId": 2,
+      "createdAt": "2026-03-27T15:25:00.000Z",
+      "resolvedAt": null
+    },
+    {
+      "id": 1554,
+      "title": "Creation de l'adresse mail de Nicolas",
+      "priority": "high",
+      "status": "resolved",
+      "sla": "+7d",
+      "slaClass": "ok",
+      "assignedUserId": 1,
+      "createdAt": "2026-04-04T11:10:29.010Z",
+      "resolvedAt": "2026-04-04T12:11:09.197Z"
+    },
+    {
+      "id": 1555,
+      "title": "SLA COM",
+      "priority": "high",
+      "status": "resolved",
+      "sla": "+7d",
+      "slaClass": "ok",
+      "assignedUserId": 4,
+      "createdAt": "2026-04-04T12:02:51.276Z",
+      "resolvedAt": "2026-04-04T12:10:59.917Z"
+    },
+    {
+      "id": 1556,
+      "title": "Probleme avec PC Secretariat",
+      "priority": "high",
+      "status": "in-progress",
+      "sla": "+7d",
+      "slaClass": "ok",
+      "assignedUserId": 2,
+      "createdAt": "2026-04-04T18:42:00.003Z",
+      "resolvedAt": null
+    }
+  ],
+  "departments": [
+    {
+      "name": "Direction",
+      "tickets": 5,
+      "services": [
+        "Pilotage",
+        "Coordination"
+      ]
+    },
+    {
+      "name": "Secretariat",
+      "tickets": 8,
+      "services": [
+        "Accueil",
+        "Dossiers"
+      ]
+    },
+    {
+      "name": "Finance & Comptabilité",
+      "tickets": 6
+    },
+    {
+      "name": "Facturation",
+      "tickets": 4
+    },
+    {
+      "name": "Médical",
+      "tickets": 12,
+      "services": [
+        "Consultation",
+        "Suivi"
+      ]
+    },
+    {
+      "name": "Relation contractuelle",
+      "tickets": 9
+    },
+    {
+      "name": "Nursing",
+      "tickets": 15
+    },
+    {
+      "name": "Hospitalisation",
+      "tickets": 11
+    },
+    {
+      "name": "Dialyse",
+      "tickets": 5
+    },
+    {
+      "name": "Laboratoire",
+      "tickets": 10
+    },
+    {
+      "name": "Imagerie",
+      "tickets": 8
+    },
+    {
+      "name": "Pharmacie",
+      "tickets": 6
+    },
+    {
+      "name": "IT",
+      "tickets": 20
+    },
+    {
+      "name": "Maintenance",
+      "tickets": 9
+    },
+    {
+      "name": "Logistique",
+      "tickets": 7
+    },
+    {
+      "name": "Inventaire",
+      "tickets": 6
+    },
+    {
+      "name": "Facilities Management",
+      "tickets": 5
+    },
+    {
+      "name": "Achat",
+      "tickets": 4
+    },
+    {
+      "name": "Qualité",
+      "tickets": 3
+    },
+    {
+      "name": "Project Management",
+      "tickets": 4
+    },
+    {
+      "name": "Marketing & Commercial",
+      "tickets": 2
+    }
+  ],
+  "devices": [
+    {
+      "id": 1,
+      "name": "Telephone Techno",
+      "type": "Telephone",
+      "ip": "",
+      "status": "online",
+      "department": "Facilities Management",
+      "service": "Charroi",
+      "tags": [
+        "Telephone"
+      ]
+    },
+    {
+      "id": 2,
+      "name": "PC-SEC-01",
+      "type": "PC",
+      "ip": "192.168.10.21",
+      "status": "online",
+      "department": "Secretariat",
+      "service": "Accueil",
+      "tags": [
+        "PC"
+      ]
+    },
+    {
+      "id": 3,
+      "name": "MAC-MED-01",
+      "type": "Mac",
+      "ip": "192.168.11.40",
+      "status": "online",
+      "department": "Médical",
+      "service": "Consultation",
+      "tags": [
+        "Mac"
+      ]
+    },
+    {
+      "id": 4,
+      "name": "LAP-RC-01",
+      "type": "Laptop",
+      "ip": "192.168.11.71",
+      "status": "offline",
+      "department": "Relation contractuelle",
+      "service": "",
+      "tags": [
+        "Laptop"
+      ]
+    },
+    {
+      "id": 5,
+      "name": "SRV-IT-01",
+      "type": "Server",
+      "ip": "192.168.20.10",
+      "status": "online",
+      "department": "IT",
+      "service": "",
+      "tags": [
+        "Server"
+      ]
+    }
+  ],
+  "expenses": [],
+  "expenseMonthlyBudget": 45000,
+  "alertRules": {
+    "minPurchaseStageAssets": 2
+  },
+  "slaPolicies": [
+    {
+      "year": 2026,
+      "targetHours": 4
+    },
+    {
+      "year": 2027,
+      "targetHours": 5
+    }
+  ]
+}

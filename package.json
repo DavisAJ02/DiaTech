@@ -1,0 +1,14 @@
+{
+  "name": "ti-dashboard",
+  "version": "1.0.0",
+  "private": true,
+  "type": "commonjs",
+  "scripts": {
+    "start:api": "node api/index.js"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.49.8",
+    "cors": "^2.8.6",
+    "express": "^5.2.1"
+  }
+}

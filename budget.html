@@ -1,0 +1,525 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>DiaTech – Budget &amp; Expenses</title>
+  <link rel="stylesheet" href="styles.css"/>
+  <link rel="preconnect" href="https://fonts.googleapis.com"/>
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+  <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,600&display=swap" rel="stylesheet"/>
+  <style>
+    .budget-summary { display:grid; grid-template-columns:repeat(auto-fit, minmax(min(100%, 280px), 1fr)); gap:var(--layout-gap, 20px); margin-bottom:var(--layout-gap, 24px); }
+    .budget-card { background:var(--surface); border:1px solid var(--border-subtle); border-radius:var(--radius); padding:20px 22px; box-shadow:var(--shadow-sm); min-width:0; }
+    .budget-card-label { font-size:12px; font-weight:600; color:var(--text-muted); text-transform:uppercase; letter-spacing:.04em; margin-bottom:8px; }
+    .budget-card-value { font-family:var(--font-head); font-size:26px; font-weight:700; letter-spacing:-.02em; }
+    .budget-card-value.warn { color:var(--accent); }
+    .budget-card-value.ok { color:var(--accent3); }
+    .budget-top-list { margin:0; padding:0; list-style:none; font-size:13px; }
+    .budget-top-list li { display:flex; justify-content:space-between; gap:12px; padding:6px 0; border-bottom:1px solid var(--border-subtle); }
+    .budget-top-list li:last-child { border-bottom:none; }
+    .budget-top-name { color:var(--text); font-weight:500; }
+    .budget-top-amt { color:var(--text-muted); font-weight:600; font-variant-numeric:tabular-nums; }
+    .budget-top-empty { font-size:13px; color:var(--text-muted); }
+    .filter-bar { display:flex; gap:var(--layout-gap, 16px); align-items:flex-end; margin-bottom:var(--layout-gap, 22px); flex-wrap:wrap; }
+    .filter-field { display:flex; flex-direction:column; gap:6px; }
+    .filter-field label { font-size:11px; font-weight:600; color:var(--text-muted); text-transform:uppercase; letter-spacing:.03em; }
+    .filter-select, .filter-date { background:var(--surface); border:1px solid var(--border); color:var(--text); border-radius:var(--radius-xs); padding:9px 14px; font-size:13px; font-family:var(--font-body); outline:none; }
+    .filter-select:focus, .filter-date:focus { border-color:var(--primary); box-shadow:0 0 0 3px var(--primary-muted); }
+    #expense-modal { display:none; position:fixed; inset:0; background:rgba(12,17,29,.45); backdrop-filter:blur(6px); z-index:200; align-items:center; justify-content:center; padding:20px; }
+    #expense-modal.open { display:flex; }
+    .modal-box { background:var(--surface); border:1px solid var(--border-subtle); border-radius:var(--radius); padding:28px; width:min(520px,96vw); max-height:90vh; overflow-y:auto; box-shadow:var(--shadow-lg); }
+    .modal-box h3 { font-family:var(--font-head); font-size:18px; font-weight:600; letter-spacing:-.02em; margin-bottom:20px; }
+    .form-row { display:flex; flex-direction:column; gap:7px; margin-bottom:14px; }
+    .form-row label { font-size:12px; font-weight:600; color:var(--text-muted); }
+    .form-row input, .form-row select { background:var(--surface2); border:1px solid var(--border); color:var(--text); border-radius:var(--radius-xs); padding:10px 14px; font-size:13px; font-family:var(--font-body); outline:none; }
+    .form-row input:focus, .form-row select:focus { border-color:var(--primary); box-shadow:0 0 0 3px var(--primary-muted); }
+    .form-error { font-size:12px; color:var(--accent); min-height:18px; margin-bottom:8px; }
+    .modal-actions { display:flex; gap:10px; justify-content:flex-end; margin-top:8px; }
+    .exp-table-wrap { overflow-x:auto; border-radius:var(--radius); border:1px solid var(--border-subtle); }
+    .budget-expenses-table tbody tr { cursor:pointer; }
+    .budget-expenses-table tbody tr:hover td { background:color-mix(in srgb, var(--surface2) 88%, white 12%); }
+    .budget-expenses-table tbody tr.menu-open td { background:color-mix(in srgb, var(--surface2) 82%, white 18%); box-shadow: inset 0 1px 0 rgba(255,255,255,.04), inset 0 -1px 0 rgba(255,255,255,.04); }
+    .budget-row-menu { position:fixed; width:fit-content; min-width:0; display:none; flex-direction:column; gap:3px; padding:7px; border-radius:15px; background:color-mix(in srgb, var(--surface) 96%, white 4%); border:1px solid color-mix(in srgb, var(--border) 84%, transparent); box-shadow:0 20px 36px rgba(15,23,42,.22); backdrop-filter:blur(12px); z-index:240; }
+    .budget-row-menu.show { display:flex; }
+    .budget-row-menu button, .budget-row-menu a { width:auto; min-width:136px; display:flex; align-items:center; gap:9px; justify-content:flex-start; text-align:left; padding:8px 11px; font-size:11.5px; font-weight:600; border-radius:12px; white-space:nowrap; text-decoration:none; }
+    .budget-row-menu button svg, .budget-row-menu a svg { width:15px; height:15px; stroke:currentColor; fill:none; stroke-width:1.9; flex-shrink:0; }
+    .budget-row-menu .btn-secondary:hover { background:color-mix(in srgb, var(--surface2) 86%, white 14%); }
+    .data-table td { vertical-align:middle; font-size:13px; }
+  </style>
+</head>
+<body>
+<script src="data.js"></script>
+<script src="i18n.js"></script>
+<script src="auth.js"></script>
+<script src="api-client.js"></script>
+<script>Auth.guard();</script>
+
+<aside class="sidebar">
+  <div class="sidebar-logo">
+    <span class="logo-mark">
+      <img src="assets/sidebar-logo.png" alt="DiaTech" decoding="async"
+        style="width:100%;height:100%;object-fit:contain;border-radius:8px;" />
+    </span>
+    <span class="logo-text">DiaTech</span>
+  </div>
+  <nav class="sidebar-nav">
+    <a href="index.html" class="nav-item" title="Dashboard">
+      <svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg>
+      <span>Dashboard</span>
+    </a>
+    <a href="tickets.html" class="nav-item" title="Tickets">
+      <svg viewBox="0 0 24 24"><path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/></svg>
+      <span>Tickets</span>
+    </a>
+    <a href="departments.html" class="nav-item" title="Départements">
+      <svg viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75"/></svg>
+      <span>Départements</span>
+    </a>
+    <a href="devices.html" class="nav-item" title="Devices">
+      <svg viewBox="0 0 24 24"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg>
+      <span>Devices</span>
+    </a>
+    <a href="inventory.html" class="nav-item" title="Inventory">
+      <svg viewBox="0 0 24 24"><path d="M21 16V8a2 2 0 00-1-1.73l-7-4a2 2 0 00-2 0l-7 4A2 2 0 003 8v8a2 2 0 001 1.73l7 4a2 2 0 002 0l7-4A2 2 0 0021 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg>
+      <span>Inventory</span>
+    </a>
+    <a href="budget.html" class="nav-item active" title="Budget">
+      <svg viewBox="0 0 24 24"><rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/></svg>
+      <span>Budget</span>
+    </a>
+    <a href="alerts.html" class="nav-item" title="Alerts">
+      <svg viewBox="0 0 24 24"><path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9M13.73 21a2 2 0 01-3.46 0"/></svg>
+      <span>Alerts</span>
+    </a>
+    <a href="reports.html" class="nav-item" title="Reports">
+      <svg viewBox="0 0 24 24"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
+      <span>Reports</span>
+    </a>
+    <a href="it-analytics.html" class="nav-item" title="IT Analytics">
+      <svg viewBox="0 0 24 24"><path d="M3 3v18h18"/><path d="M7 16V8"/><path d="M12 16v-5"/><path d="M17 16v-9"/></svg>
+      <span>Analytics</span>
+    </a>
+  </nav>
+  <div class="sidebar-footer sidebar-footer--auth">
+    <div class="sidebar-avatar">··</div>
+    <button type="button" class="sidebar-logout auth-logout-btn" title="Déconnexion">Déconnexion</button>
+  </div>
+</aside>
+<script src="sidebar-nav.js"></script>
+<script src="topbar-user-menu.js"></script>
+<script src="page-polish.js"></script>
+
+<main class="main-content">
+  <div class="container">
+  <header class="topbar header">
+    <div class="topbar-left header-left">
+      <h1 class="page-title">Budget &amp; expenses</h1>
+    </div>
+    <div class="topbar-right header-right">
+      <button type="button" class="btn-primary" id="btn-add-expense">
+        <svg viewBox="0 0 24 24" width="18" height="18"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+        Add Expense
+      </button>
+    </div>
+  </header>
+
+  <div class="content-pad">
+    <div class="budget-summary">
+      <div class="budget-card">
+        <div class="budget-card-label">Total spent this month</div>
+        <div class="budget-card-value" id="sum-month">—</div>
+      </div>
+      <div class="budget-card">
+        <div class="budget-card-label">Budget remaining</div>
+        <div class="budget-card-value ok" id="budget-remaining">—</div>
+        <div class="budget-top-empty" style="margin-top:8px" id="budget-cap-hint"></div>
+      </div>
+      <div class="budget-card">
+        <div class="budget-card-label">Top categories (this month)</div>
+        <ul class="budget-top-list" id="top-categories"></ul>
+      </div>
+    </div>
+
+    <div class="filter-bar">
+      <div class="filter-field">
+        <label for="filter-date-from">From</label>
+        <input type="date" class="filter-date" id="filter-date-from"/>
+      </div>
+      <div class="filter-field">
+        <label for="filter-date-to">To</label>
+        <input type="date" class="filter-date" id="filter-date-to"/>
+      </div>
+      <div class="filter-field">
+        <label for="filter-category">Category</label>
+        <select class="filter-select" id="filter-category">
+          <option value="">All categories</option>
+          <option value="IT Equipment">IT Equipment</option>
+          <option value="Maintenance">Maintenance</option>
+          <option value="Software">Software</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="exp-table-wrap">
+      <table class="data-table budget-expenses-table">
+        <thead>
+          <tr>
+            <th>Item</th>
+            <th>Category</th>
+            <th>Amount</th>
+            <th>Date</th>
+            <th>Supplier</th>
+            <th>Linked asset</th>
+            <th>Approved by</th>
+          </tr>
+        </thead>
+        <tbody id="expenses-body"></tbody>
+      </table>
+    </div>
+  </div>
+  </div>
+</main>
+
+<div class="budget-row-menu" id="budget-row-menu" aria-hidden="true">
+  <a class="btn-secondary" id="budget-row-asset" href="inventory.html"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg><span>Open asset</span></a>
+  <button type="button" class="btn-primary" id="budget-row-edit"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 1 1 3 3L7 19l-4 1 1-4 12.5-12.5z"/></svg><span>Edit</span></button>
+  <button type="button" class="btn-secondary" id="budget-row-delete"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/></svg><span>Delete</span></button>
+</div>
+
+<div id="expense-modal" aria-hidden="true">
+  <div class="modal-box" role="dialog" aria-labelledby="expense-modal-title">
+    <h3 id="expense-modal-title">Add expense</h3>
+    <input type="hidden" id="ex-id" value=""/>
+    <div class="form-row"><label for="ex-item">Item name</label><input type="text" id="ex-item" placeholder="Description"/></div>
+    <div class="form-row"><label for="ex-category">Category</label><select id="ex-category">
+      <option value="IT Equipment">IT Equipment</option>
+      <option value="Maintenance">Maintenance</option>
+      <option value="Software">Software</option>
+    </select></div>
+    <div class="form-row"><label for="ex-amount">Amount</label><input type="number" id="ex-amount" min="0" step="0.01" placeholder="0.00"/></div>
+    <div class="form-row"><label for="ex-date">Date</label><input type="date" id="ex-date"/></div>
+    <div class="form-row"><label for="ex-supplier">Supplier</label><input type="text" id="ex-supplier" placeholder="Vendor name"/></div>
+    <div class="form-row"><label for="ex-asset">Link to inventory asset (optional)</label><select id="ex-asset"></select><p class="form-hint" style="font-size:11px;color:var(--text-muted);margin-top:6px">For IT equipment spend: connects this line to an asset. Syncs with Inventory → purchase expense.</p></div>
+    <div class="form-row"><label for="ex-approved">Approved by</label><select id="ex-approved"></select></div>
+    <div class="form-error" id="ex-error"></div>
+    <div class="modal-actions">
+      <button type="button" class="btn-secondary" id="ex-cancel">Cancel</button>
+      <button type="button" class="btn-primary" id="ex-save">Save</button>
+    </div>
+  </div>
+</div>
+
+<script>
+(function () {
+  const money = new Intl.NumberFormat(undefined, { style: "currency", currency: "USD", maximumFractionDigits: 2 });
+  const EXP_CATEGORIES = ["IT Equipment", "Maintenance", "Software"];
+  const budgetRowMenu = document.getElementById("budget-row-menu");
+  const budgetRowAsset = document.getElementById("budget-row-asset");
+  let activeExpenseId = null;
+  let activeExpenseRow = null;
+
+  async function hydrateFromApi() {
+    if (typeof ApiClient === "undefined") return;
+    const localSnapshot = {
+      expenses: Array.isArray(DB.expenses) ? DB.expenses.slice() : [],
+      inventory: Array.isArray(DB.inventory) ? DB.inventory.slice() : [],
+      expenseMonthlyBudget: Number(DB.expenseMonthlyBudget) || 0,
+    };
+    const remote = await ApiClient.getAppData();
+    if (!remote || typeof remote !== "object") return;
+    const remoteEmpty = !Array.isArray(remote.expenses) || remote.expenses.length === 0;
+    if (remoteEmpty && localSnapshot.expenses.length > 0) {
+      await ApiClient.bootstrap(localSnapshot);
+      const after = await ApiClient.getAppData();
+      if (after && typeof after === "object") {
+        if (Array.isArray(after.expenses)) DB.expenses = after.expenses;
+        if (Array.isArray(after.inventory)) DB.inventory = after.inventory;
+        if (after.expenseMonthlyBudget != null) DB.expenseMonthlyBudget = Number(after.expenseMonthlyBudget) || 0;
+      }
+      return;
+    }
+    if (Array.isArray(remote.expenses)) DB.expenses = remote.expenses;
+    if (Array.isArray(remote.inventory)) DB.inventory = remote.inventory;
+    if (remote.expenseMonthlyBudget != null) DB.expenseMonthlyBudget = Number(remote.expenseMonthlyBudget) || 0;
+  }
+
+  function syncBudgetToApi() {
+    if (typeof ApiClient === "undefined") return;
+    void ApiClient.saveAppData({
+      expenses: Array.isArray(DB.expenses) ? DB.expenses : [],
+      inventory: Array.isArray(DB.inventory) ? DB.inventory : [],
+      expenseMonthlyBudget: Number(DB.expenseMonthlyBudget) || 0,
+    });
+  }
+
+  function escapeHtml(s) {
+    return String(s)
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/\"/g, "&quot;");
+  }
+
+  function userName(id) {
+    const u = typeof getUserById === "function" ? getUserById(id) : null;
+    return u ? u.name : "—";
+  }
+
+  function assetLabel(assetId, asHtml) {
+    if (assetId == null || assetId === "") return "—";
+    const a = (DB.inventory || []).find((x) => x.id === Number(assetId));
+    if (!a) return "—";
+    if (asHtml) return `<a href="inventory.html?asset=${a.id}" style="color:var(--primary);font-weight:600;font-size:12px">${escapeHtml(a.name)}</a>`;
+    return a.name;
+  }
+
+  function currentMonthPrefix() {
+    const d = new Date();
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, "0");
+    return `${y}-${m}`;
+  }
+
+  function expensesThisCalendarMonth() {
+    const prefix = currentMonthPrefix();
+    return (DB.expenses || []).filter((e) => e.date && String(e.date).startsWith(prefix));
+  }
+
+  function renderSummary() {
+    const monthRows = expensesThisCalendarMonth();
+    const total = monthRows.reduce((s, e) => s + (Number(e.amount) || 0), 0);
+    const cap = Number(DB.expenseMonthlyBudget) || 0;
+    const remaining = cap - total;
+    document.getElementById("sum-month").textContent = money.format(total);
+    const remEl = document.getElementById("budget-remaining");
+    remEl.textContent = money.format(remaining);
+    remEl.classList.remove("warn", "ok");
+    remEl.classList.add(remaining < 0 ? "warn" : "ok");
+    document.getElementById("budget-cap-hint").textContent = cap > 0 ? `Monthly cap ${money.format(cap)} · ${monthRows.length} line item(s)` : "";
+    const byCat = {};
+    monthRows.forEach((e) => {
+      const c = e.category || "Other";
+      byCat[c] = (byCat[c] || 0) + (Number(e.amount) || 0);
+    });
+    const sorted = Object.entries(byCat).sort((a, b) => b[1] - a[1]);
+    const top = document.getElementById("top-categories");
+    if (sorted.length === 0) {
+      top.innerHTML = '<li class="budget-top-empty">No expenses recorded this month.</li>';
+    } else {
+      top.innerHTML = sorted.slice(0, 5).map(([name, amt]) => `<li><span class="budget-top-name">${escapeHtml(name)}</span><span class="budget-top-amt">${money.format(amt)}</span></li>`).join("");
+    }
+  }
+
+  function getTableFilters() {
+    return {
+      from: document.getElementById("filter-date-from").value,
+      to: document.getElementById("filter-date-to").value,
+      cat: document.getElementById("filter-category").value,
+    };
+  }
+
+  function filteredForTable() {
+    const { from, to, cat } = getTableFilters();
+    return (DB.expenses || [])
+      .filter((e) => {
+        const d = e.date || "";
+        if (from && d < from) return false;
+        if (to && d > to) return false;
+        if (cat && e.category !== cat) return false;
+        return true;
+      })
+      .slice()
+      .sort((a, b) => String(b.date).localeCompare(String(a.date)) || (b.id || 0) - (a.id || 0));
+  }
+
+  function closeBudgetRowMenu() {
+    if (budgetRowMenu) {
+      budgetRowMenu.classList.remove("show");
+      budgetRowMenu.setAttribute("aria-hidden", "true");
+    }
+    if (activeExpenseRow) activeExpenseRow.classList.remove("menu-open");
+    activeExpenseId = null;
+    activeExpenseRow = null;
+  }
+
+  function openBudgetRowMenu(id, row, point) {
+    if (!budgetRowMenu || !row) return;
+    const rect = row.getBoundingClientRect();
+    const clickX = point && typeof point.clientX === "number" ? point.clientX : rect.right;
+    const clickY = point && typeof point.clientY === "number" ? point.clientY : rect.top + rect.height / 2;
+    const openSame = activeExpenseId === id && budgetRowMenu.classList.contains("show");
+    closeBudgetRowMenu();
+    if (openSame) return;
+    activeExpenseId = id;
+    activeExpenseRow = row;
+    row.classList.add("menu-open");
+    const expense = (DB.expenses || []).find((x) => x.id === id);
+    if (budgetRowAsset) {
+      if (expense && expense.linkedAssetId != null) {
+        budgetRowAsset.href = `inventory.html?asset=${expense.linkedAssetId}`;
+        budgetRowAsset.style.display = "flex";
+      } else {
+        budgetRowAsset.removeAttribute("href");
+        budgetRowAsset.style.display = "none";
+      }
+    }
+    budgetRowMenu.classList.add("show");
+    budgetRowMenu.style.visibility = "hidden";
+    const menuWidth = budgetRowMenu.offsetWidth || 164;
+    const menuHeight = budgetRowMenu.offsetHeight || 126;
+    const desiredLeft = clickX + 6;
+    const desiredTop = clickY - 12;
+    const maxLeft = window.innerWidth - menuWidth - 12;
+    const maxTop = window.innerHeight - menuHeight - 12;
+    budgetRowMenu.style.left = Math.max(12, Math.min(desiredLeft, maxLeft)) + "px";
+    budgetRowMenu.style.top = Math.max(12, Math.min(desiredTop, maxTop)) + "px";
+    budgetRowMenu.style.visibility = "";
+    budgetRowMenu.setAttribute("aria-hidden", "false");
+  }
+
+  function bindBudgetRows() {
+    document.querySelectorAll("#expenses-body tr[data-expense-id]").forEach((row) => {
+      if (row.dataset.rowMenuBound === "1") return;
+      row.dataset.rowMenuBound = "1";
+      row.addEventListener("click", (e) => {
+        if (e.target.closest("a")) return;
+        e.stopPropagation();
+        openBudgetRowMenu(Number(row.dataset.expenseId), row, e);
+      });
+    });
+  }
+
+  function renderTable() {
+    const tbody = document.getElementById("expenses-body");
+    const rows = filteredForTable();
+    tbody.innerHTML = rows.map((e) => `<tr data-expense-id="${e.id}"><td><strong>${escapeHtml(e.itemName || "")}</strong></td><td>${escapeHtml(e.category || "—")}</td><td>${money.format(Number(e.amount) || 0)}</td><td>${escapeHtml(e.date || "—")}</td><td>${escapeHtml(e.supplier || "—")}</td><td>${e.linkedAssetId != null ? assetLabel(e.linkedAssetId, true) : "—"}</td><td>${escapeHtml(userName(e.approvedByUserId))}</td></tr>`).join("");
+    if (rows.length === 0) {
+      tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;color:var(--text-muted);padding:28px">No expenses match the filters.</td></tr>';
+    }
+    bindBudgetRows();
+  }
+
+  function fillApproverSelect() {
+    const sel = document.getElementById("ex-approved");
+    sel.innerHTML = "";
+    (DB.users || []).filter((u) => u.active).sort((a, b) => a.name.localeCompare(b.name)).forEach((u) => {
+      const o = document.createElement("option");
+      o.value = String(u.id);
+      o.textContent = u.name;
+      sel.appendChild(o);
+    });
+  }
+
+  function fillAssetSelect() {
+    const sel = document.getElementById("ex-asset");
+    sel.innerHTML = "";
+    const none = document.createElement("option");
+    none.value = "";
+    none.textContent = "None";
+    sel.appendChild(none);
+    (DB.inventory || []).forEach((a) => {
+      const o = document.createElement("option");
+      o.value = String(a.id);
+      o.textContent = `${a.name} (#${a.id})`;
+      sel.appendChild(o);
+    });
+  }
+
+  function openModal(id) {
+    const isEdit = Number.isFinite(id);
+    const row = isEdit ? (DB.expenses || []).find((x) => x.id === id) : null;
+    document.getElementById("ex-error").textContent = "";
+    fillApproverSelect();
+    fillAssetSelect();
+    document.getElementById("ex-id").value = isEdit ? String(id) : "";
+    document.getElementById("expense-modal-title").textContent = isEdit ? "Edit expense" : "Add expense";
+    document.getElementById("ex-item").value = row ? (row.itemName || "") : "";
+    document.getElementById("ex-category").value = row ? (row.category || EXP_CATEGORIES[0]) : EXP_CATEGORIES[0];
+    document.getElementById("ex-amount").value = row ? String(Number(row.amount) || 0) : "";
+    document.getElementById("ex-date").value = row && row.date ? row.date : `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, "0")}-${String(new Date().getDate()).padStart(2, "0")}`;
+    document.getElementById("ex-supplier").value = row ? (row.supplier || "") : "";
+    document.getElementById("ex-asset").value = row && row.linkedAssetId != null ? String(row.linkedAssetId) : "";
+    const me = typeof getCurrentUser === "function" ? getCurrentUser() : null;
+    document.getElementById("ex-approved").value = row ? String(row.approvedByUserId || "") : (me ? String(me.id) : "");
+    document.getElementById("expense-modal").classList.add("open");
+  }
+
+  function closeModal() {
+    document.getElementById("expense-modal").classList.remove("open");
+  }
+
+  function saveExpense() {
+    const err = document.getElementById("ex-error");
+    err.textContent = "";
+    const existingId = Number(document.getElementById("ex-id").value);
+    const itemName = document.getElementById("ex-item").value.trim();
+    const category = document.getElementById("ex-category").value;
+    const amount = parseFloat(document.getElementById("ex-amount").value);
+    const date = document.getElementById("ex-date").value;
+    const supplier = document.getElementById("ex-supplier").value.trim();
+    const assetRaw = document.getElementById("ex-asset").value;
+    const linkedAssetId = assetRaw === "" ? null : Number(assetRaw);
+    const approvedByUserId = Number(document.getElementById("ex-approved").value);
+    if (!itemName) return void (err.textContent = "Item name is required.");
+    if (!date) return void (err.textContent = "Date is required.");
+    if (!Number.isFinite(amount) || amount < 0) return void (err.textContent = "Enter a valid amount.");
+    if (!supplier) return void (err.textContent = "Supplier is required.");
+    if (!Number.isFinite(approvedByUserId)) return void (err.textContent = "Select who approved this expense.");
+    let id = existingId;
+    let row = Number.isFinite(existingId) ? (DB.expenses || []).find((x) => x.id === existingId) : null;
+    if (!row) {
+      id = typeof nextExpenseId === "function" ? nextExpenseId() : DB.expenses.length + 1;
+      row = { id, itemName: "", category: EXP_CATEGORIES[0], amount: 0, date: "", supplier: "", linkedAssetId: null, approvedByUserId };
+      DB.expenses.push(row);
+    }
+    row.itemName = itemName;
+    row.category = category;
+    row.amount = amount;
+    row.date = date;
+    row.supplier = supplier;
+    row.approvedByUserId = approvedByUserId;
+    if (typeof setExpenseAssetLink === "function") setExpenseAssetLink(id, Number.isFinite(linkedAssetId) ? linkedAssetId : null);
+    else row.linkedAssetId = Number.isFinite(linkedAssetId) ? linkedAssetId : null;
+    if (typeof persistInventoryAndExpenses === "function") persistInventoryAndExpenses();
+    else if (typeof persistExpenses === "function") persistExpenses();
+    syncBudgetToApi();
+    closeModal();
+    renderSummary();
+    renderTable();
+  }
+
+  function deleteExpense(id) {
+    const idx = (DB.expenses || []).findIndex((x) => x.id === id);
+    if (idx === -1) return;
+    if (typeof setExpenseAssetLink === "function") setExpenseAssetLink(id, null);
+    else if (DB.expenses[idx]) DB.expenses[idx].linkedAssetId = null;
+    DB.expenses.splice(idx, 1);
+    if (typeof persistInventoryAndExpenses === "function") persistInventoryAndExpenses();
+    else if (typeof persistExpenses === "function") persistExpenses();
+    syncBudgetToApi();
+    closeBudgetRowMenu();
+    renderSummary();
+    renderTable();
+  }
+
+  document.getElementById("btn-add-expense")?.addEventListener("click", () => openModal());
+  document.getElementById("ex-cancel")?.addEventListener("click", closeModal);
+  document.getElementById("expense-modal")?.addEventListener("click", (e) => { if (e.target.id === "expense-modal") closeModal(); });
+  document.getElementById("ex-save")?.addEventListener("click", saveExpense);
+  document.getElementById("budget-row-edit")?.addEventListener("click", () => { if (activeExpenseId != null) openModal(activeExpenseId); closeBudgetRowMenu(); });
+  document.getElementById("budget-row-delete")?.addEventListener("click", () => { if (activeExpenseId != null) deleteExpense(activeExpenseId); });
+  budgetRowMenu?.addEventListener("click", (e) => e.stopPropagation());
+  document.addEventListener("click", closeBudgetRowMenu);
+  ["filter-date-from", "filter-date-to", "filter-category"].forEach((id) => { document.getElementById(id)?.addEventListener("change", renderTable); });
+  renderSummary();
+  renderTable();
+  void hydrateFromApi().then(() => {
+    renderSummary();
+    renderTable();
+  });
+  Auth.enhanceUI();
+})();
+</script>
+</body>
+</html>

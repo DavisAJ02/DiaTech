@@ -1,0 +1,389 @@
+<!DOCTYPE html>
+<html lang="en" data-require-role="admin">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title data-i18n="settings.meta.title">DiaTech – Settings</title>
+  <link rel="stylesheet" href="styles.css"/>
+  <link rel="preconnect" href="https://fonts.googleapis.com"/>
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+  <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,600&display=swap" rel="stylesheet"/>
+  <style>
+    .settings-layout { display:grid; grid-template-columns:minmax(0, 220px) minmax(0, 1fr); gap:var(--layout-gap, 20px); align-items:start; }
+    @media (max-width: 768px) {
+      .settings-layout { grid-template-columns: 1fr; }
+    }
+    .settings-nav { background:var(--surface); border:1px solid var(--border-subtle); border-radius:var(--radius); padding:14px; box-shadow:var(--shadow-sm); height:fit-content; }
+    .settings-nav-item { display:flex; align-items:center; gap:10px; padding:9px 12px; border-radius:8px; font-size:13px; font-weight:500; cursor:pointer; color:var(--text-muted); transition:all .2s; }
+    .settings-nav-item.active { background:rgba(244,63,94,.1); color:var(--accent); font-weight:600; }
+    .settings-nav-item:hover:not(.active) { background:var(--surface2); }
+    .settings-section { display:none; }
+    .settings-section.active { display:block; }
+    .form-group { background:var(--surface); border:1px solid var(--border-subtle); border-radius:var(--radius); padding:24px; margin-bottom:18px; box-shadow:var(--shadow-sm); transition:box-shadow .25s; }
+    .form-group h3 { font-family:var(--font-head); font-size:15px; font-weight:700; margin-bottom:16px; }
+    .form-field { display:flex; flex-direction:column; gap:6px; margin-bottom:14px; }
+    .form-field label { font-size:12px; font-weight:600; color:var(--text-muted); }
+    .form-field input, .form-field select { background:var(--surface2); border:1px solid var(--border); color:var(--text); border-radius:8px; padding:9px 12px; font-size:13px; font-family:var(--font-body); outline:none; }
+    .form-field input:focus, .form-field select:focus { border-color:var(--accent2); }
+    .toggle-row { display:flex; align-items:center; justify-content:space-between; padding:12px 0; border-bottom:1px solid var(--border); }
+    .toggle-row:last-child { border-bottom:none; }
+    .toggle-label { font-size:13px; font-weight:500; }
+    .toggle-sub { font-size:11px; color:var(--text-muted); }
+    .toggle { position:relative; width:42px; height:24px; }
+    .toggle input { opacity:0; width:0; height:0; }
+    .toggle-slider { position:absolute; inset:0; background:var(--border); border-radius:100px; cursor:pointer; transition:.2s; }
+    .toggle-slider::before { content:''; position:absolute; width:18px; height:18px; background:#fff; border-radius:50%; left:3px; bottom:3px; transition:.2s; }
+    .toggle input:checked + .toggle-slider { background:var(--accent3); }
+    .toggle input:checked + .toggle-slider::before { transform:translateX(18px); }
+    .save-row { display:flex; justify-content:flex-end; gap:10px; margin-top:4px; }
+    .users-admin-head { display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:12px; margin-bottom:16px; }
+    .users-admin-head h3 { margin:0; }
+    .users-table-wrap { overflow-x:auto; }
+    .users-table { width:100%; border-collapse:collapse; font-size:13px; }
+    .users-table th { text-align:left; padding:10px 12px; color:var(--text-muted); font-weight:600; font-size:11px; text-transform:uppercase; letter-spacing:.04em; border-bottom:1px solid var(--border); }
+    .users-table td { padding:12px; border-bottom:1px solid var(--border-subtle); vertical-align:middle; }
+    .user-sub { font-size:11px; color:var(--text-muted); margin-top:2px; }
+    .user-status.on { color:var(--accent3); font-weight:600; }
+    .user-status.off { color:var(--text-muted); }
+    .user-feats { font-size:12px; color:var(--text-muted); max-width:180px; }
+    .user-actions { white-space:nowrap; }
+    #user-edit-modal { display:none; position:fixed; inset:0; background:rgba(12,17,29,.45); backdrop-filter:blur(6px); z-index:200; align-items:center; justify-content:center; padding:20px; }
+    #user-edit-modal.open { display:flex; }
+    .user-modal-box { background:var(--surface); border:1px solid var(--border-subtle); border-radius:var(--radius); padding:26px; width:min(480px,96vw); max-height:90vh; overflow-y:auto; box-shadow:var(--shadow-lg); }
+    .user-modal-box h3 { font-family:var(--font-head); font-size:17px; font-weight:600; margin-bottom:18px; }
+    .ue-row { display:flex; flex-direction:column; gap:6px; margin-bottom:14px; }
+    .ue-row label { font-size:12px; font-weight:600; color:var(--text-muted); }
+    .ue-row input[type="text"], .ue-row input[type="email"], .ue-row input[type="password"] { background:var(--surface2); border:1px solid var(--border); color:var(--text); border-radius:8px; padding:9px 12px; font-size:13px; font-family:var(--font-body); outline:none; }
+    .ue-row input:focus { border-color:var(--accent2); }
+    .ue-pages-grid { display:grid; grid-template-columns:repeat(auto-fit, minmax(min(100%, 140px), 1fr)); gap:var(--layout-gap, 12px); margin-top:8px; }
+    .ue-page-item { display:flex; align-items:center; gap:8px; font-size:13px; cursor:pointer; }
+    .ue-page-item input { accent-color:var(--accent); }
+    .ue-hint { font-size:11px; color:var(--text-muted); margin-top:6px; }
+    #ue-error { font-size:12px; color:var(--accent); min-height:18px; margin-bottom:8px; }
+    .ue-modal-actions { display:flex; gap:10px; justify-content:flex-end; margin-top:16px; }
+    .sla-policy-list { display:grid; gap:8px; margin-bottom:14px; }
+    .sla-policy-row { display:flex; align-items:center; justify-content:space-between; background:var(--surface2); border:1px solid var(--border); border-radius:10px; padding:10px 12px; font-size:13px; }
+    .sla-policy-form { display:grid; grid-template-columns:repeat(3, minmax(0, 1fr)); gap:10px; }
+    .sla-policy-form .form-field { margin-bottom:0; }
+    @media (max-width: 720px) {
+      .sla-policy-form { grid-template-columns:1fr; }
+    }
+  </style>
+</head>
+<body>
+<script src="data.js"></script>
+<script src="i18n.js"></script>
+<script src="auth.js"></script>
+<script src="api-client.js"></script>
+<script>Auth.guard();</script>
+<aside class="sidebar">
+  <div class="sidebar-logo">
+    <span class="logo-mark">
+      <img src="assets/sidebar-logo.png" alt="DiaTech" decoding="async"
+        style="width:100%;height:100%;object-fit:contain;border-radius:8px;" />
+    </span>
+    <span class="logo-text">DiaTech</span>
+  </div>
+  <nav class="sidebar-nav">
+    <a href="index.html" class="nav-item"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg><span data-i18n="common.nav.dashboard">Dashboard</span></a>
+    <a href="tickets.html" class="nav-item"><svg viewBox="0 0 24 24"><path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/></svg><span data-i18n="common.nav.tickets">Tickets</span></a>
+    <a href="departments.html" class="nav-item"><svg viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/></svg><span data-i18n="common.nav.departments">Départements</span></a>
+    <a href="devices.html" class="nav-item"><svg viewBox="0 0 24 24"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg><span data-i18n="common.nav.devices">Devices</span></a>
+    <a href="inventory.html" class="nav-item"><svg viewBox="0 0 24 24"><path d="M21 16V8a2 2 0 00-1-1.73l-7-4a2 2 0 00-2 0l-7 4A2 2 0 003 8v8a2 2 0 001 1.73l7 4a2 2 0 002 0l7-4A2 2 0 0021 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg><span data-i18n="common.nav.inventory">Inventory</span></a>
+    <a href="budget.html" class="nav-item"><svg viewBox="0 0 24 24"><rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/></svg><span data-i18n="common.nav.budget">Budget</span></a>
+    <a href="alerts.html" class="nav-item"><svg viewBox="0 0 24 24"><path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9M13.73 21a2 2 0 01-3.46 0"/></svg><span data-i18n="common.nav.alerts">Alerts</span></a>
+    <a href="reports.html" class="nav-item"><svg viewBox="0 0 24 24"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg><span data-i18n="common.nav.reports">Reports</span></a>
+    <a href="it-analytics.html" class="nav-item"><svg viewBox="0 0 24 24"><path d="M3 3v18h18"/><path d="M7 16V8"/><path d="M12 16v-5"/><path d="M17 16v-9"/></svg><span data-i18n="common.nav.analytics">Analytics</span></a>
+  </nav>
+  <div class="sidebar-footer sidebar-footer--auth">
+    <div class="sidebar-avatar">··</div>
+    <button type="button" class="sidebar-logout auth-logout-btn" title="Déconnexion" data-i18n="common.logout">Déconnexion</button>
+  </div>
+</aside>
+<script src="sidebar-nav.js"></script>
+<script src="topbar-user-menu.js"></script>
+<script src="page-polish.js"></script>
+<main class="main-content">
+  <div class="container">
+  <header class="topbar header">
+    <div class="topbar-left header-left"><h1 class="page-title" data-i18n="settings.page.title">Settings</h1></div>
+    
+  </header>
+  <div class="content-pad">
+    <div class="settings-layout">
+      <div class="settings-nav">
+        <div class="settings-nav-item active" data-section="profile" data-i18n="settings.nav.profile">Profile</div>
+        <div class="settings-nav-item" data-section="notifications" data-i18n="settings.nav.notifications">Notifications</div>
+        <div class="settings-nav-item" data-section="integrations" data-i18n="settings.nav.integrations">Integrations</div>
+        <div class="settings-nav-item" data-section="security" data-i18n="settings.nav.security">Security</div>
+        <div class="settings-nav-item" data-section="sla">SLA Policy</div>
+        <div class="settings-nav-item" data-section="users" data-i18n="settings.nav.users">Users &amp; access</div>
+      </div>
+      <div>
+                <!-- Profile -->
+        <div class="settings-section active" id="section-profile">
+          <div class="form-group">
+            <h3 data-i18n="settings.profile.title">Profile Information</h3>
+            <div class="form-field"><label data-i18n="settings.profile.fullname">Full Name</label><input type="text" value="John Doe"/></div>
+            <div class="form-field"><label data-i18n="settings.profile.email">Email</label><input type="email" value="john@nexusops.io"/></div>
+            <div class="form-field"><label data-i18n="settings.profile.role">Role</label><select><option>Administrator</option><option>Technician</option><option>Viewer</option></select></div>
+            <div class="form-field">
+              <label for="language-select" data-i18n="settings.profile.lang.label">Langue de l'interface</label>
+              <select id="language-select">
+                <option value="fr" data-i18n="settings.profile.lang.fr">Français</option>
+                <option value="en" data-i18n="settings.profile.lang.en">English</option>
+              </select>
+            </div>
+            <div class="save-row"><button class="btn-secondary" data-i18n="settings.btn.cancel">Cancel</button><button class="btn-primary" data-i18n="settings.btn.save_changes">Save Changes</button></div>
+          </div>
+          <div class="form-group">
+            <h3 data-i18n="settings.appearance.title">Appearance &amp; theme</h3>
+            <div class="toggle-row">
+              <div>
+                <div class="toggle-label" data-i18n="settings.appearance.theme.label">Interface theme</div>
+                <div class="toggle-sub" data-i18n="settings.appearance.theme.sub">Switch between the default light interface and dark mode for the workspace.</div>
+              </div>
+              <button type="button" class="btn-secondary" id="theme-toggle" data-i18n="settings.appearance.theme.toggle">Toggle dark mode</button>
+            </div>
+          </div>
+        </div>
+        <!-- Notifications -->
+        <div class="settings-section" id="section-notifications">
+          <div class="form-group">
+            <h3>Alert Notifications</h3>
+            <div class="toggle-row"><div><div class="toggle-label">Alertes critiques</div><div class="toggle-sub">Receive notifications for critical issues</div></div><label class="toggle"><input type="checkbox" checked/><span class="toggle-slider"></span></label></div>
+            <div class="toggle-row"><div><div class="toggle-label">Warning Alerts</div><div class="toggle-sub">Receive notifications for warning-level issues</div></div><label class="toggle"><input type="checkbox" checked/><span class="toggle-slider"></span></label></div>
+            <div class="toggle-row"><div><div class="toggle-label">Ticket Assignments</div><div class="toggle-sub">Get notified when a ticket is assigned to you</div></div><label class="toggle"><input type="checkbox" checked/><span class="toggle-slider"></span></label></div>
+            <div class="toggle-row"><div><div class="toggle-label">SLA Breaches</div><div class="toggle-sub">Alert when a ticket SLA is breached</div></div><label class="toggle"><input type="checkbox"/><span class="toggle-slider"></span></label></div>
+            <div class="toggle-row"><div><div class="toggle-label">Weekly Report</div><div class="toggle-sub">Receive weekly digest emails</div></div><label class="toggle"><input type="checkbox" checked/><span class="toggle-slider"></span></label></div>
+          </div>
+        </div>
+        <!-- Integrations -->
+        <div class="settings-section" id="section-integrations">
+          <div class="form-group">
+            <h3>Connected Integrations</h3>
+            <div class="toggle-row"><div><div class="toggle-label">Slack</div><div class="toggle-sub">Post alerts to a Slack channel</div></div><label class="toggle"><input type="checkbox" checked/><span class="toggle-slider"></span></label></div>
+            <div class="toggle-row"><div><div class="toggle-label">PagerDuty</div><div class="toggle-sub">Escalate critical alerts automatically</div></div><label class="toggle"><input type="checkbox"/><span class="toggle-slider"></span></label></div>
+            <div class="toggle-row"><div><div class="toggle-label">Microsoft Teams</div><div class="toggle-sub">Post ticket updates to Teams channels</div></div><label class="toggle"><input type="checkbox"/><span class="toggle-slider"></span></label></div>
+            <div class="toggle-row"><div><div class="toggle-label">Jira</div><div class="toggle-sub">Sync tickets with Jira projects</div></div><label class="toggle"><input type="checkbox" checked/><span class="toggle-slider"></span></label></div>
+          </div>
+        </div>
+        <!-- Users & access -->
+        <div class="settings-section" id="section-users">
+          <div class="form-group">
+            <div class="users-admin-head">
+              <h3>Team accounts</h3>
+              <button type="button" class="btn-primary" id="btn-create-agent">Create agent</button>
+            </div>
+            <p class="ue-hint" style="margin-bottom:14px">Create agent logins, limit which modules they see, and toggle capabilities (assignee, exports, department management). Changes are stored in this browser only.</p>
+            <div class="users-table-wrap">
+              <table class="users-table">
+                <thead>
+                  <tr>
+                    <th>User</th>
+                    <th>Role</th>
+                    <th>Status</th>
+                    <th>Modules</th>
+                    <th>Capabilities</th>
+                    <th></th>
+                  </tr>
+                </thead>
+                <tbody id="users-admin-body"></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+        <!-- Security -->
+        <div class="settings-section" id="section-security">
+          <div class="form-group">
+            <h3>Security Settings</h3>
+            <div class="toggle-row"><div><div class="toggle-label">Two-Factor Authentication</div><div class="toggle-sub">Require 2FA for all logins</div></div><label class="toggle"><input type="checkbox" checked/><span class="toggle-slider"></span></label></div>
+            <div class="toggle-row"><div><div class="toggle-label">Session Timeout</div><div class="toggle-sub">Auto-logout after 30 minutes of inactivity</div></div><label class="toggle"><input type="checkbox" checked/><span class="toggle-slider"></span></label></div>
+            <div style="margin-top:16px">
+              <div class="form-field"><label>Change Password</label><input type="password" placeholder="New password"/></div>
+              <div class="save-row"><button class="btn-primary">Update Password</button></div>
+            </div>
+          </div>
+        </div>
+        <!-- SLA policy -->
+        <div class="settings-section" id="section-sla">
+          <div class="form-group">
+            <h3>SLA policy by year</h3>
+            <p class="ue-hint" style="margin-bottom:12px">Set max resolution hours by year. Reports and technician evaluation use this target.</p>
+            <div class="sla-policy-list" id="sla-policy-list"></div>
+            <div class="sla-policy-form">
+              <div class="form-field">
+                <label for="sla-policy-year">Year</label>
+                <input id="sla-policy-year" type="number" min="2020" max="2100" step="1" />
+              </div>
+              <div class="form-field">
+                <label for="sla-policy-hours">Target hours</label>
+                <input id="sla-policy-hours" type="number" min="1" max="240" step="1" />
+              </div>
+              <div class="save-row" style="align-items:end">
+                <button class="btn-primary" type="button" id="btn-sla-save">Save SLA target</button>
+              </div>
+            </div>
+            <div id="sla-policy-feedback" class="ue-hint" style="margin-top:10px"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  </div>
+</main>
+
+<div id="user-edit-modal" aria-hidden="true">
+  <div class="user-modal-box" role="dialog" aria-labelledby="ue-modal-title">
+    <h3 id="ue-modal-title">Edit user</h3>
+    <input type="hidden" id="ue-id" value=""/>
+    <div class="ue-row"><label for="ue-username">Username</label><input type="text" id="ue-username" autocomplete="username"/></div>
+    <div class="ue-row"><label for="ue-email">Email</label><input type="email" id="ue-email" autocomplete="email"/></div>
+    <div class="ue-row"><label for="ue-name">Display name</label><input type="text" id="ue-name" autocomplete="name"/></div>
+    <div class="ue-row"><label for="ue-password">Password</label><input type="password" id="ue-password" autocomplete="new-password"/></div>
+    <div class="toggle-row">
+      <div><div class="toggle-label">Account active</div><div class="toggle-sub">Inactive users cannot sign in</div></div>
+      <label class="toggle"><input type="checkbox" id="ue-active" checked/><span class="toggle-slider"></span></label>
+    </div>
+    <div class="toggle-row">
+      <div><div class="toggle-label">Administrator</div><div class="toggle-sub">Full access including this screen</div></div>
+      <label class="toggle"><input type="checkbox" id="ue-role-admin"/><span class="toggle-slider"></span></label>
+    </div>
+    <div class="ue-row" id="ue-pages-box">
+      <label>Module access</label>
+      <div class="ue-pages-grid">
+        <label class="ue-page-item"><input type="checkbox" id="ue-page-index-html" checked/><span>Dashboard</span></label>
+        <label class="ue-page-item"><input type="checkbox" id="ue-page-tickets-html" checked/><span>Tickets</span></label>
+        <label class="ue-page-item"><input type="checkbox" id="ue-page-departments-html" checked/><span>Départements</span></label>
+        <label class="ue-page-item"><input type="checkbox" id="ue-page-devices-html" checked/><span>Devices</span></label>
+        <label class="ue-page-item"><input type="checkbox" id="ue-page-inventory-html" checked/><span>Inventory</span></label>
+        <label class="ue-page-item"><input type="checkbox" id="ue-page-budget-html" checked/><span>Budget</span></label>
+        <label class="ue-page-item"><input type="checkbox" id="ue-page-alerts-html" checked/><span>Alerts</span></label>
+        <label class="ue-page-item"><input type="checkbox" id="ue-page-reports-html" checked/><span>Reports</span></label>
+        <label class="ue-page-item"><input type="checkbox" id="ue-page-it-analytics-html" checked/><span>IT Analytics</span></label>
+      </div>
+      <p class="ue-hint">Leave all checked for default agent access. Uncheck to restrict; Dashboard always stays available.</p>
+    </div>
+    <div class="form-group" style="padding:16px;margin-bottom:0;box-shadow:none">
+      <h3 style="font-size:14px;margin-bottom:12px">Capabilities</h3>
+      <div class="toggle-row"><div><div class="toggle-label">Can be ticket assignee</div><div class="toggle-sub">Show in assignee lists</div></div><label class="toggle"><input type="checkbox" id="ue-f-assignee" checked/><span class="toggle-slider"></span></label></div>
+      <div class="toggle-row"><div><div class="toggle-label">Export reports</div><div class="toggle-sub">Allow export-related actions</div></div><label class="toggle"><input type="checkbox" id="ue-f-export" checked/><span class="toggle-slider"></span></label></div>
+      <div class="toggle-row"><div><div class="toggle-label">Manage departments</div><div class="toggle-sub">Département CRUD where enforced</div></div><label class="toggle"><input type="checkbox" id="ue-f-departments" checked/><span class="toggle-slider"></span></label></div>
+    </div>
+    <div id="ue-error"></div>
+    <div class="ue-modal-actions">
+      <button type="button" class="btn-secondary" id="user-modal-cancel">Cancel</button>
+      <button type="button" class="btn-primary" id="user-modal-save">Save</button>
+    </div>
+  </div>
+</div>
+
+<script src="users-admin.js"></script>
+<script>
+const html=document.documentElement;
+if(localStorage.getItem('theme')) html.dataset.theme=localStorage.getItem('theme');
+document.getElementById('theme-toggle')?.addEventListener('click',()=>{
+  const d=html.dataset.theme==='dark'; html.dataset.theme=d?'':'dark'; localStorage.setItem('theme',d?'':'dark');
+});
+function activateSettingsSection(section){
+  const target = section || 'profile';
+  document.querySelectorAll('.settings-nav-item').forEach(i=>i.classList.toggle('active', i.dataset.section===target));
+  document.querySelectorAll('.settings-section').forEach(s=>s.classList.toggle('active', s.id==='section-'+target));
+}
+document.querySelectorAll('.settings-nav-item').forEach(item=>{
+  item.addEventListener('click',()=>{
+    const section = item.dataset.section;
+    activateSettingsSection(section);
+    if (window.location.hash !== '#'+section) {
+      window.history.replaceState({}, '', '#'+section);
+    }
+  });
+});
+const hashSection = (window.location.hash || '').replace('#','');
+activateSettingsSection(hashSection || 'profile');
+const languageSelect = document.getElementById('language-select');
+if (languageSelect && window.I18n) {
+  languageSelect.value = I18n.getLanguage();
+  languageSelect.addEventListener('change', () => {
+    I18n.setLanguage(languageSelect.value);
+  });
+  window.addEventListener('i18n:change', (e) => {
+    if (e && e.detail && e.detail.lang) languageSelect.value = e.detail.lang;
+  });
+}
+
+function renderSlaPolicies() {
+  const host = document.getElementById('sla-policy-list');
+  if (!host) return;
+  const rows = (Array.isArray(DB.slaPolicies) ? DB.slaPolicies : [])
+    .map((p) => ({ year: Number(p.year), targetHours: Number(p.targetHours) }))
+    .filter((p) => Number.isFinite(p.year) && Number.isFinite(p.targetHours) && p.targetHours > 0)
+    .sort((a, b) => a.year - b.year);
+  if (!rows.length) {
+    host.innerHTML = '<div class="ue-hint">No SLA policy yet. Add one below.</div>';
+    return;
+  }
+  host.innerHTML = rows
+    .map((p) => `<div class="sla-policy-row"><span><strong>${p.year}</strong></span><span>${p.targetHours}h max</span></div>`)
+    .join('');
+}
+
+async function saveSlaPoliciesToApi() {
+  if (typeof ApiClient === 'undefined') return;
+  await ApiClient.saveAppData({ slaPolicies: Array.isArray(DB.slaPolicies) ? DB.slaPolicies : [] });
+}
+
+async function hydrateSlaPoliciesFromApi() {
+  if (typeof ApiClient === 'undefined') return;
+  const remote = await ApiClient.getAppData();
+  if (!remote || typeof remote !== 'object') return;
+  const local = Array.isArray(DB.slaPolicies) ? DB.slaPolicies.slice() : [];
+  if ((!Array.isArray(remote.slaPolicies) || remote.slaPolicies.length === 0) && local.length > 0) {
+    await ApiClient.bootstrap({ slaPolicies: local });
+    return;
+  }
+  if (Array.isArray(remote.slaPolicies) && remote.slaPolicies.length) {
+    DB.slaPolicies = remote.slaPolicies;
+    if (typeof persistSlaPolicies === 'function') persistSlaPolicies();
+  }
+}
+
+document.getElementById('btn-sla-save')?.addEventListener('click', async () => {
+  const year = Number(document.getElementById('sla-policy-year')?.value || '');
+  const hours = Number(document.getElementById('sla-policy-hours')?.value || '');
+  const fb = document.getElementById('sla-policy-feedback');
+  if (!Number.isFinite(year) || year < 2020 || year > 2100) {
+    if (fb) fb.textContent = 'Enter a valid year.';
+    return;
+  }
+  if (!Number.isFinite(hours) || hours <= 0) {
+    if (fb) fb.textContent = 'Enter a valid SLA target (hours).';
+    return;
+  }
+  DB.slaPolicies = Array.isArray(DB.slaPolicies) ? DB.slaPolicies : [];
+  const idx = DB.slaPolicies.findIndex((p) => Number(p.year) === year);
+  const payload = { year, targetHours: hours };
+  if (idx >= 0) DB.slaPolicies[idx] = payload;
+  else DB.slaPolicies.push(payload);
+  DB.slaPolicies.sort((a, b) => Number(a.year) - Number(b.year));
+  if (typeof persistSlaPolicies === 'function') persistSlaPolicies();
+  await saveSlaPoliciesToApi();
+  renderSlaPolicies();
+  if (fb) fb.textContent = `Saved SLA ${hours}h for ${year}.`;
+});
+
+renderSlaPolicies();
+void hydrateSlaPoliciesFromApi().then(() => renderSlaPolicies());
+Auth.enhanceUI();
+if (typeof UsersAdmin !== "undefined" && UsersAdmin.init) UsersAdmin.init();
+</script>
+</body>
+</html>
+
+
+
+
+
+
+
+

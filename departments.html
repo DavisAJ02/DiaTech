@@ -1,0 +1,274 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>DiaTech – Départements</title>
+  <link rel="stylesheet" href="styles.css"/>
+  <link rel="preconnect" href="https://fonts.googleapis.com"/>
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+  <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,600&display=swap" rel="stylesheet"/>
+  <style>
+    .dept-cards { display:grid; grid-template-columns:repeat(auto-fit, minmax(min(100%, 280px), 1fr)); gap:var(--layout-gap, 20px); }
+    .dept-card { background:var(--surface); border:1px solid var(--border-subtle); border-radius:var(--radius); padding:24px; box-shadow:var(--shadow-sm); transition:box-shadow .25s, border-color .25s, transform .25s; min-width:0; }
+    .dept-card:hover { box-shadow:var(--shadow-md); border-color:color-mix(in srgb, var(--border) 85%, var(--primary-muted)); }
+    .dept-card-head { display:flex; align-items:center; gap:12px; margin-bottom:14px; }
+    .dept-logo { width:42px; height:42px; border-radius:12px; display:flex; align-items:center; justify-content:center; font-family:var(--font-head); font-weight:800; font-size:16px; color:#fff; }
+    .dept-card-name { font-family:var(--font-head); font-size:15px; font-weight:700; }
+    .dept-card-services { font-size:11px; color:var(--text-muted); font-weight:500; margin-top:2px; }
+    .service-chip { display:inline-flex; align-items:center; padding:2px 8px; border-radius:999px; border:1px solid var(--border); background:var(--surface2); font-size:10px; margin-right:6px; margin-top:4px; }
+    .dept-stats { display:grid; grid-template-columns:repeat(auto-fit, minmax(min(100%, 72px), 1fr)); gap:var(--layout-gap, 12px); }
+    .dept-stat { background:var(--surface2); border-radius:8px; padding:10px; text-align:center; }
+    .dept-stat-btn {
+      border:1px solid transparent;
+      width:100%;
+      cursor:pointer;
+      transition:transform .18s ease, border-color .18s ease, box-shadow .18s ease, background-color .18s ease;
+    }
+    .dept-stat-btn:hover {
+      transform:translateY(-1px);
+      border-color:var(--border);
+      box-shadow:var(--shadow-sm);
+    }
+    .dept-stat-btn:focus-visible {
+      outline:none;
+      border-color:var(--accent2);
+      box-shadow:0 0 0 3px color-mix(in srgb, var(--accent2) 24%, transparent);
+    }
+    .dept-stat--alerts { position:relative; }
+    .ack-mini-btn {
+      position:absolute;
+      top:6px;
+      right:6px;
+      width:22px;
+      height:22px;
+      border-radius:999px;
+      border:1px solid var(--border);
+      background:var(--surface);
+      color:var(--text);
+      font-size:12px;
+      font-weight:700;
+      cursor:pointer;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      padding:0;
+    }
+    .ack-mini-btn:hover { background:color-mix(in srgb, var(--surface2) 82%, white 18%); }
+    .dept-stat-val { font-family:var(--font-head); font-size:18px; font-weight:700; }
+    .dept-stat-label { font-size:10px; color:var(--text-muted); font-weight:500; margin-top:2px; }
+    .add-department-btn { margin-bottom:20px; }
+    #add-dept-modal { display:none; position:fixed; inset:0; background:rgba(0,0,0,.4); z-index:200; align-items:center; justify-content:center; }
+    #add-dept-modal.open { display:flex; }
+    .modal-box { background:var(--surface); border-radius:16px; padding:28px; width:420px; max-width:95vw; box-shadow:var(--shadow-lg); }
+    .modal-box h3 { font-family:var(--font-head); font-size:18px; margin-bottom:18px; }
+    .form-row { display:flex; flex-direction:column; gap:6px; margin-bottom:14px; }
+    .form-row label { font-size:12px; font-weight:600; color:var(--text-muted); }
+    .form-row input, .form-row select { background:var(--surface2); border:1px solid var(--border); color:var(--text); border-radius:8px; padding:9px 12px; font-size:13px; font-family:var(--font-body); outline:none; }
+    .modal-actions { display:flex; gap:10px; justify-content:flex-end; }
+  </style>
+</head>
+<body>
+<script src="data.js"></script>
+<script src="i18n.js"></script>
+<script src="auth.js"></script>
+<script src="api-client.js"></script>
+<script>Auth.guard();</script>
+<aside class="sidebar">
+  <div class="sidebar-logo">
+    <span class="logo-mark">
+      <img src="assets/sidebar-logo.png" alt="DiaTech" decoding="async"
+        style="width:100%;height:100%;object-fit:contain;border-radius:8px;" />
+    </span>
+    <span class="logo-text">DiaTech</span>
+  </div>
+  <nav class="sidebar-nav">
+    <a href="index.html" class="nav-item"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg><span>Dashboard</span></a>
+    <a href="tickets.html" class="nav-item"><svg viewBox="0 0 24 24"><path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/></svg><span>Tickets</span></a>
+    <a href="departments.html" class="nav-item active"><svg viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/></svg><span>Départements</span></a>
+    <a href="devices.html" class="nav-item"><svg viewBox="0 0 24 24"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg><span>Devices</span></a>
+    <a href="inventory.html" class="nav-item"><svg viewBox="0 0 24 24"><path d="M21 16V8a2 2 0 00-1-1.73l-7-4a2 2 0 00-2 0l-7 4A2 2 0 003 8v8a2 2 0 001 1.73l7 4a2 2 0 002 0l7-4A2 2 0 0021 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg><span>Inventory</span></a>
+    <a href="budget.html" class="nav-item"><svg viewBox="0 0 24 24"><rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/></svg><span>Budget</span></a>
+    <a href="alerts.html" class="nav-item"><svg viewBox="0 0 24 24"><path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9M13.73 21a2 2 0 01-3.46 0"/></svg><span>Alerts</span></a>
+    <a href="reports.html" class="nav-item"><svg viewBox="0 0 24 24"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg><span>Reports</span></a>
+    <a href="it-analytics.html" class="nav-item"><svg viewBox="0 0 24 24"><path d="M3 3v18h18"/><path d="M7 16V8"/><path d="M12 16v-5"/><path d="M17 16v-9"/></svg><span>Analytics</span></a>
+  </nav>
+  <div class="sidebar-footer sidebar-footer--auth">
+    <div class="sidebar-avatar">··</div>
+    <button type="button" class="sidebar-logout auth-logout-btn" title="Déconnexion">Déconnexion</button>
+  </div>
+</aside>
+<script src="sidebar-nav.js"></script>
+<script src="topbar-user-menu.js"></script>
+<script src="page-polish.js"></script>
+<main class="main-content">
+  <div class="container">
+  <header class="topbar header">
+    <div class="topbar-left header-left"><h1 class="page-title">Départements</h1></div>
+    <div class="topbar-right header-right">
+      <button class="btn-primary add-department-btn" onclick="document.getElementById('add-dept-modal').classList.add('open')">
+        <svg viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+        Ajouter département
+      </button>
+    </div>
+  </header>
+  <div class="content-pad">
+    <h3 style="margin-bottom:12px">Liste des départements</h3>
+    <div class="dept-cards" id="dept-cards"></div>
+  </div>
+  </div>
+</main>
+
+<div id="add-dept-modal">
+  <div class="modal-box">
+    <h3>Ajouter département</h3>
+    <div class="form-row"><label>Nom du département</label><input type="text" id="dn-name" placeholder="Urgences"/></div>
+    <div class="form-row"><label>Services (optionnel)</label><input type="text" id="dn-services" placeholder="Consultation, Suivi, Urgence"/></div>
+    <div class="form-row"><label>Email de contact</label><input type="email" id="dn-email" placeholder="admin@cmd.local"/></div>
+    <div class="modal-actions">
+      <button class="btn-secondary" onclick="document.getElementById('add-dept-modal').classList.remove('open')">Annuler</button>
+      <button class="btn-primary" onclick="addDepartment()">Ajouter département</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const html = document.documentElement;
+if(localStorage.getItem('theme')) html.dataset.theme = localStorage.getItem('theme');
+document.getElementById('theme-toggle')?.addEventListener('click',()=>{
+  const d=html.dataset.theme==='dark'; html.dataset.theme=d?'':'dark'; localStorage.setItem('theme',d?'':'dark');
+});
+
+const colors = ['#f43f5e','#3b82f6','#10b981','#8b5cf6','#f59e0b'];
+const DEPARTMENT_DEVICE_STORAGE_KEY = 'cmd_department_devices_v1';
+function withDepartmentColors(list) {
+  return (Array.isArray(list) ? list : []).map((d, i) => ({ ...d, color: d.color || colors[i % colors.length] }));
+}
+let departments = withDepartmentColors(DB.departments);
+let departmentDevices = loadDepartmentDevices();
+
+async function hydrateDepartmentsAndDevicesFromApi() {
+  if (typeof ApiClient === 'undefined') return;
+  const localDepartments = Array.isArray(DB.departments) ? DB.departments.slice() : [];
+  const localDevices = Array.isArray(departmentDevices) ? departmentDevices.slice() : [];
+  const [remoteDepartments, remoteDevices] = await Promise.all([
+    ApiClient.getDepartments(),
+    ApiClient.getDevices()
+  ]);
+  const hasRemoteDepartments = Array.isArray(remoteDepartments);
+  const hasRemoteDevices = Array.isArray(remoteDevices);
+  if (!hasRemoteDepartments && !hasRemoteDevices) return;
+
+  const shouldBootstrap =
+    (!hasRemoteDepartments || remoteDepartments.length === 0) &&
+    (!hasRemoteDevices || remoteDevices.length === 0) &&
+    (localDepartments.length > 0 || localDevices.length > 0);
+  if (shouldBootstrap) {
+    await ApiClient.bootstrap({
+      departments: localDepartments,
+      devices: localDevices
+    });
+  }
+
+  const [remoteDepartments2, remoteDevices2] = await Promise.all([
+    ApiClient.getDepartments(),
+    ApiClient.getDevices()
+  ]);
+  if (Array.isArray(remoteDepartments2) && remoteDepartments2.length) {
+    DB.departments = remoteDepartments2;
+    departments = withDepartmentColors(remoteDepartments2);
+  } else {
+    departments = withDepartmentColors(localDepartments);
+  }
+  if (Array.isArray(remoteDevices2) && remoteDevices2.length) {
+    departmentDevices = remoteDevices2;
+    localStorage.setItem(DEPARTMENT_DEVICE_STORAGE_KEY, JSON.stringify(departmentDevices));
+  }
+}
+
+function departmentUrl(page, name, extra) {
+  const qp = new URLSearchParams({ department: name });
+  if (extra) Object.keys(extra).forEach((k) => qp.set(k, String(extra[k])));
+  return `${page}?${qp.toString()}`;
+}
+
+function renderDepartments() {
+  document.getElementById('dept-cards').innerHTML = departments.map(d => {
+    const alertCount = Math.max(1, Math.round((d.tickets || 0) * 0.35));
+    const deviceCount = departmentDevices.filter(x => x.department === d.name).length;
+    const services = Array.isArray(d.services) && d.services.length
+      ? `<div class="dept-card-services">${d.services.map(s => `<span class="service-chip">${s}</span>`).join('')}</div>`
+      : `<div class="dept-card-services">Sans service spécifique</div>`;
+    return `
+    <div class="dept-card">
+      <div class="dept-card-head">
+        <div class="dept-logo" style="background:${d.color}">${d.name.charAt(0)}</div>
+        <div>
+          <div class="dept-card-name">${d.name}</div>
+          ${services}
+        </div>
+      </div>
+      <div class="dept-stats">
+        <button type="button" class="dept-stat dept-stat-btn" onclick="window.location.href='${departmentUrl("tickets.html", d.name)}'">
+          <div class="dept-stat-val">${d.tickets}</div>
+          <div class="dept-stat-label">Tickets</div>
+        </button>
+        <div class="dept-stat dept-stat-btn dept-stat--alerts" role="button" tabindex="0" onclick="window.location.href='${departmentUrl("alerts.html", d.name)}'" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();window.location.href='${departmentUrl("alerts.html", d.name)}';}">
+          <div class="dept-stat-val">${alertCount}</div>
+          <div class="dept-stat-label">Alertes</div>
+          <button type="button" class="ack-mini-btn" title="Acquitter alertes" onclick="event.stopPropagation();window.location.href='${departmentUrl("alerts.html", d.name, {ack: 1})}'">✓</button>
+        </div>
+        <button type="button" class="dept-stat dept-stat-btn" onclick="window.location.href='${departmentUrl("devices.html", d.name)}'">
+          <div class="dept-stat-val">${deviceCount}</div>
+          <div class="dept-stat-label">Appareils</div>
+        </button>
+      </div>
+    </div>
+  `;
+  }).join('');
+}
+
+window.addDepartment = function() {
+  const name = document.getElementById('dn-name').value.trim();
+  if(!name) return;
+  const servicesRaw = document.getElementById('dn-services').value.trim();
+  const services = servicesRaw ? servicesRaw.split(',').map(s => s.trim()).filter(Boolean) : [];
+  const nextDepartment = { name, tickets: 0, services, color: colors[departments.length % colors.length] };
+  departments.push(nextDepartment);
+  DB.departments = departments;
+  if (typeof ApiClient !== 'undefined') void ApiClient.upsertDepartment(nextDepartment);
+  document.getElementById('add-dept-modal').classList.remove('open');
+  document.getElementById('dn-name').value = '';
+  document.getElementById('dn-services').value = '';
+  renderDepartments();
+};
+
+function defaultDepartmentDevices() {
+  return [
+    { id: 1, name: 'PC-DIR-01', type: 'PC', ip: '192.168.10.11', department: 'Direction', status: 'online' },
+    { id: 2, name: 'PC-SEC-01', type: 'PC', ip: '192.168.10.21', department: 'Secretariat', status: 'online' },
+    { id: 3, name: 'MAC-MED-01', type: 'Mac', ip: '192.168.11.40', department: 'Médical', status: 'online' },
+    { id: 4, name: 'LAP-RC-01', type: 'Laptop', ip: '192.168.11.71', department: 'Relation contractuelle', status: 'offline' },
+    { id: 5, name: 'SRV-IT-01', type: 'Server', ip: '192.168.20.10', department: 'IT', status: 'online' }
+  ];
+}
+
+function loadDepartmentDevices() {
+  try {
+    const raw = localStorage.getItem(DEPARTMENT_DEVICE_STORAGE_KEY);
+    if (!raw) return defaultDepartmentDevices();
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed : defaultDepartmentDevices();
+  } catch (_) {
+    return defaultDepartmentDevices();
+  }
+}
+
+renderDepartments();
+void hydrateDepartmentsAndDevicesFromApi().then(() => {
+  renderDepartments();
+});
+Auth.enhanceUI();
+</script>
+</body>
+</html>

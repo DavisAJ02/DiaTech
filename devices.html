@@ -1,0 +1,442 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>DiaTech – Devices</title>
+  <link rel="stylesheet" href="styles.css"/>
+  <link rel="preconnect" href="https://fonts.googleapis.com"/>
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+  <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,600&display=swap" rel="stylesheet"/>
+  <style>
+    .device-grid { display:grid; grid-template-columns:repeat(auto-fit, minmax(min(100%, 280px), 1fr)); gap:var(--layout-gap, 20px); }
+    .device-card { background:var(--surface); border:1px solid var(--border-subtle); border-radius:var(--radius); padding:22px; box-shadow:var(--shadow-sm); transition:transform .25s cubic-bezier(0.4,0,0.2,1), box-shadow .25s, border-color .25s; cursor:pointer; min-width:0; }
+    .device-card:hover { transform:translateY(-3px); box-shadow:var(--shadow-md); border-color:color-mix(in srgb, var(--border) 80%, var(--primary-muted)); }
+    .device-card-header { display:flex; align-items:center; justify-content:space-between; margin-bottom:12px; }
+    .device-icon { width:38px; height:38px; border-radius:10px; background:var(--surface2); display:flex; align-items:center; justify-content:center; }
+    .device-icon svg { width:20px; height:20px; stroke:var(--text-muted); fill:none; stroke-width:1.5; }
+    .device-status { display:flex; align-items:center; gap:5px; font-size:12px; font-weight:600; }
+    .status-dot { width:8px; height:8px; border-radius:50%; }
+    .status-dot.online { background:var(--accent3); }
+    .status-dot.offline { background:var(--accent); }
+    .device-name { font-weight:600; font-size:14px; color:var(--text); margin-bottom:3px; }
+    .device-meta { font-size:12px; color:var(--text-muted); }
+    .device-tags { display:flex; gap:6px; margin-top:10px; flex-wrap:wrap; }
+    .device-tag { background:var(--surface2); border:1px solid var(--border); border-radius:6px; padding:2px 8px; font-size:11px; color:var(--text-muted); font-weight:500; }
+    .device-actions { display:flex; gap:8px; margin-top:12px; }
+    .device-actions .btn-secondary { padding:6px 10px; font-size:11px; }
+    #device-modal { display:none; position:fixed; inset:0; background:rgba(0,0,0,.45); z-index:220; align-items:center; justify-content:center; padding:clamp(8px, 2vh, 20px); }
+    #device-modal.open { display:flex; }
+    .device-modal-box { background:var(--surface); border:1px solid var(--border-subtle); border-radius:var(--radius); padding:20px; width:min(460px, 92vw); max-height:min(88vh, 720px); overflow-y:auto; box-shadow:var(--shadow-lg); }
+    .device-modal-box h3 { font-family:var(--font-head); font-size:18px; margin-bottom:16px; }
+    .device-form-row { display:flex; flex-direction:column; gap:7px; margin-bottom:12px; }
+    .device-form-row label { font-size:12px; font-weight:600; color:var(--text-muted); }
+    .device-form-row input, .device-form-row select { background:var(--surface2); border:1px solid var(--border); color:var(--text); border-radius:8px; padding:10px 12px; font-size:13px; font-family:var(--font-body); }
+    .device-modal-actions { display:flex; justify-content:flex-end; gap:8px; margin-top:8px; }
+    @media (max-width: 640px) {
+      #device-modal { align-items:flex-start; }
+      .device-modal-box { width:96vw; max-height:94vh; padding:16px; border-radius:14px; }
+      .device-form-row { margin-bottom:10px; }
+    }
+    .install-zone { background:var(--surface); border:2px dashed var(--border); border-radius:var(--radius); padding:40px; text-align:center; margin-bottom:20px; transition:border-color .2s; }
+    .install-zone:hover { border-color:var(--accent2); }
+    .install-zone h3 { font-family:var(--font-head); font-size:16px; margin-bottom:8px; }
+    .install-zone p { font-size:13px; color:var(--text-muted); margin-bottom:16px; }
+  </style>
+</head>
+<body>
+<script src="data.js"></script>
+<script src="i18n.js"></script>
+<script src="auth.js"></script>
+<script src="api-client.js"></script>
+<script>Auth.guard();</script>
+<aside class="sidebar">
+  <div class="sidebar-logo">
+    <span class="logo-mark">
+      <img src="assets/sidebar-logo.png" alt="DiaTech" decoding="async"
+        style="width:100%;height:100%;object-fit:contain;border-radius:8px;" />
+    </span>
+    <span class="logo-text">DiaTech</span>
+  </div>
+  <nav class="sidebar-nav">
+    <a href="index.html" class="nav-item"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg><span>Dashboard</span></a>
+    <a href="tickets.html" class="nav-item"><svg viewBox="0 0 24 24"><path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/></svg><span>Tickets</span></a>
+    <a href="departments.html" class="nav-item"><svg viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75"/></svg><span>Départements</span></a>
+    <a href="devices.html" class="nav-item active"><svg viewBox="0 0 24 24"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg><span>Devices</span></a>
+    <a href="inventory.html" class="nav-item"><svg viewBox="0 0 24 24"><path d="M21 16V8a2 2 0 00-1-1.73l-7-4a2 2 0 00-2 0l-7 4A2 2 0 003 8v8a2 2 0 001 1.73l7 4a2 2 0 002 0l7-4A2 2 0 0021 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg><span>Inventory</span></a>
+    <a href="budget.html" class="nav-item"><svg viewBox="0 0 24 24"><rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/></svg><span>Budget</span></a>
+    <a href="alerts.html" class="nav-item"><svg viewBox="0 0 24 24"><path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9M13.73 21a2 2 0 01-3.46 0"/></svg><span>Alerts</span></a>
+    <a href="reports.html" class="nav-item"><svg viewBox="0 0 24 24"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg><span>Reports</span></a>
+    <a href="it-analytics.html" class="nav-item"><svg viewBox="0 0 24 24"><path d="M3 3v18h18"/><path d="M7 16V8"/><path d="M12 16v-5"/><path d="M17 16v-9"/></svg><span>Analytics</span></a>
+  </nav>
+  <div class="sidebar-footer sidebar-footer--auth">
+    <div class="sidebar-avatar">··</div>
+    <button type="button" class="sidebar-logout auth-logout-btn" title="Déconnexion">Déconnexion</button>
+  </div>
+</aside>
+<script src="sidebar-nav.js"></script>
+<script src="topbar-user-menu.js"></script>
+<script src="page-polish.js"></script>
+
+<main class="main-content">
+  <div class="container">
+  <header class="topbar header">
+    <div class="topbar-left header-left"><h1 class="page-title">Devices</h1></div>
+    <div class="topbar-right header-right">
+      <button class="btn-secondary" type="button" id="btn-device-add">
+        <svg viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+        Ajouter appareil
+      </button>
+      <button class="btn-primary" onclick="document.querySelector('.install-zone').scrollIntoView({behavior:'smooth'})">
+        <svg viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+        Installer l'agent
+      </button>
+    </div>
+  </header>
+
+  <div class="content-pad">
+    <!-- KPI strip -->
+    <div class="kpi-strip" style="margin-bottom:20px;padding:0">
+      <div class="kpi-card" data-color="teal"><div class="kpi-label">Total Devices</div><div class="kpi-value">250</div><div class="kpi-sub">Across all départements</div></div>
+      <div class="kpi-card" data-color="green"><div class="kpi-label">Online</div><div class="kpi-value" data-target="199">0</div><div class="kpi-sub">79.6% uptime</div></div>
+      <div class="kpi-card" data-color="red"><div class="kpi-label">Offline</div><div class="kpi-value">21</div><div class="kpi-sub">Needs attention</div></div>
+      <div class="kpi-card" data-color="blue"><div class="kpi-label">Servers</div><div class="kpi-value">20</div><div class="kpi-sub">13 online</div></div>
+      <div class="kpi-card" data-color="pink"><div class="kpi-label">Workstations</div><div class="kpi-value">181</div><div class="kpi-sub">Mac fleet</div></div>
+      <div class="kpi-card" data-color="yellow"><div class="kpi-label">SNMP Devices</div><div class="kpi-value">7</div><div class="kpi-sub">2 online, 5 offline</div></div>
+    </div>
+
+    <!-- Install Agent zone -->
+    <div class="install-zone">
+      <h3>Installer l'agent sur un nouvel appareil</h3>
+      <p>Deploy the DiaTech monitoring agent via script, GPO, or installer package.</p>
+      <div style="display:flex;gap:10px;justify-content:center;flex-wrap:wrap">
+        <button class="btn-primary">Download Windows Agent</button>
+        <button class="btn-secondary" style="padding:8px 16px;font-size:13px">Download Mac Agent</button>
+        <button class="btn-secondary" style="padding:8px 16px;font-size:13px">Linux Script</button>
+      </div>
+    </div>
+
+    <!-- Device cards -->
+    <h2 style="font-family:var(--font-head);font-size:16px;margin-bottom:14px">All Devices</h2>
+    <div class="device-grid" id="device-grid"></div>
+  </div>
+  </div>
+</main>
+
+<div id="device-modal">
+  <div class="device-modal-box">
+    <h3 id="device-modal-title">Ajouter appareil</h3>
+    <input type="hidden" id="dv-id" />
+    <div class="device-form-row"><label for="dv-name">Nom appareil</label><input id="dv-name" type="text" placeholder="PC-URG-01" /></div>
+    <div class="device-form-row"><label for="dv-type">Type</label><input id="dv-type" type="text" placeholder="PC" /></div>
+    <div class="device-form-row"><label for="dv-ip">Adresse IP</label><input id="dv-ip" type="text" placeholder="192.168.10.22" /></div>
+    <div class="device-form-row"><label for="dv-department">Département</label><select id="dv-department"></select></div>
+    <div class="device-form-row"><label for="dv-service">Service (si applicable)</label><select id="dv-service"></select></div>
+    <div class="device-form-row" id="dv-service-new-row" hidden><label for="dv-service-new">Nouveau service</label><input id="dv-service-new" type="text" placeholder="Ex: Consultation externe" /></div>
+    <div class="device-form-row"><label for="dv-status">Statut</label><select id="dv-status"><option value="online">En ligne</option><option value="offline">Hors ligne</option></select></div>
+    <div class="device-modal-actions">
+      <button class="btn-secondary" type="button" id="btn-device-cancel">Annuler</button>
+      <button class="btn-primary" type="button" id="btn-device-save">Enregistrer</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const html = document.documentElement;
+const saved = localStorage.getItem('theme');
+if (saved) html.dataset.theme = saved;
+document.getElementById('theme-toggle')?.addEventListener('click', () => {
+  const isDark = html.dataset.theme === 'dark';
+  html.dataset.theme = isDark ? '' : 'dark';
+  localStorage.setItem('theme', isDark ? '' : 'dark');
+});
+
+// Counter
+document.querySelectorAll('.kpi-value[data-target]').forEach(el => {
+  const target = parseInt(el.dataset.target,10);
+  let c = 0; const step = Math.ceil(target/40);
+  const iv = setInterval(() => { c = Math.min(c+step,target); el.textContent = c; if(c>=target) clearInterval(iv); }, 20);
+});
+
+const DEPARTMENT_DEVICE_STORAGE_KEY = 'cmd_department_devices_v1';
+const DEPARTMENT_SERVICE_STORAGE_KEY = 'cmd_department_services_v1';
+function defaultDepartmentDevices() {
+  return [
+    { id: 1, name:'PC-DIR-01', type:'PC', ip:'192.168.10.11', status:'online', department:'Direction', service:'Pilotage', tags:['PC'] },
+    { id: 2, name:'PC-SEC-01', type:'PC', ip:'192.168.10.21', status:'online', department:'Secretariat', service:'Accueil', tags:['PC'] },
+    { id: 3, name:'MAC-MED-01', type:'Mac', ip:'192.168.11.40', status:'online', department:'Médical', service:'Consultation', tags:['Mac'] },
+    { id: 4, name:'LAP-RC-01', type:'Laptop', ip:'192.168.11.71', status:'offline', department:'Relation contractuelle', service:'', tags:['Laptop'] },
+    { id: 5, name:'SRV-IT-01', type:'Server', ip:'192.168.20.10', status:'online', department:'IT', service:'', tags:['Server'] }
+  ];
+}
+function loadDepartmentDevices() {
+  try {
+    const raw = localStorage.getItem(DEPARTMENT_DEVICE_STORAGE_KEY);
+    if (!raw) return defaultDepartmentDevices();
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed : defaultDepartmentDevices();
+  } catch (_) {
+    return defaultDepartmentDevices();
+  }
+}
+function persistDepartmentDevices(devs) {
+  localStorage.setItem(DEPARTMENT_DEVICE_STORAGE_KEY, JSON.stringify(devs));
+}
+
+let allDevices = loadDepartmentDevices();
+let departmentServiceMap = loadDepartmentServiceMap();
+const filterDepartment = (new URLSearchParams(window.location.search).get('department') || '').trim();
+
+async function hydrateDevicesAndDepartmentsFromApi() {
+  if (typeof ApiClient === 'undefined') return;
+  const localDepartments = Array.isArray(DB.departments) ? DB.departments.slice() : [];
+  const localDevices = Array.isArray(allDevices) ? allDevices.slice() : [];
+  const [remoteDepartments, remoteDevices] = await Promise.all([
+    ApiClient.getDepartments(),
+    ApiClient.getDevices()
+  ]);
+
+  const hasRemoteDepartments = Array.isArray(remoteDepartments);
+  const hasRemoteDevices = Array.isArray(remoteDevices);
+  if (!hasRemoteDepartments && !hasRemoteDevices) return;
+
+  const shouldBootstrap =
+    (!hasRemoteDepartments || remoteDepartments.length === 0) &&
+    (!hasRemoteDevices || remoteDevices.length === 0) &&
+    (localDepartments.length > 0 || localDevices.length > 0);
+
+  if (shouldBootstrap) {
+    await ApiClient.bootstrap({
+      departments: localDepartments,
+      devices: localDevices
+    });
+  }
+
+  const [remoteDepartments2, remoteDevices2] = await Promise.all([
+    ApiClient.getDepartments(),
+    ApiClient.getDevices()
+  ]);
+  if (Array.isArray(remoteDepartments2) && remoteDepartments2.length) DB.departments = remoteDepartments2;
+  if (Array.isArray(remoteDevices2) && remoteDevices2.length) allDevices = remoteDevices2;
+  persistDepartmentDevices(allDevices);
+}
+
+function getDepartmentServices(name) {
+  const dep = (DB.departments || []).find((d) => d.name === name);
+  const base = dep && Array.isArray(dep.services) ? dep.services : [];
+  const custom = Array.isArray(departmentServiceMap[name]) ? departmentServiceMap[name] : [];
+  return [...new Set([...base, ...custom])];
+}
+
+function loadDepartmentServiceMap() {
+  try {
+    const raw = localStorage.getItem(DEPARTMENT_SERVICE_STORAGE_KEY);
+    if (!raw) return {};
+    const parsed = JSON.parse(raw);
+    return parsed && typeof parsed === 'object' ? parsed : {};
+  } catch (_) {
+    return {};
+  }
+}
+
+function persistDepartmentServiceMap() {
+  localStorage.setItem(DEPARTMENT_SERVICE_STORAGE_KEY, JSON.stringify(departmentServiceMap));
+}
+
+function setServiceCreateMode(on) {
+  const row = document.getElementById('dv-service-new-row');
+  const input = document.getElementById('dv-service-new');
+  if (!row || !input) return;
+  row.hidden = !on;
+  if (!on) input.value = '';
+}
+
+const svgs = {
+  Server:`<svg viewBox="0 0 24 24"><rect x="2" y="2" width="20" height="8" rx="2"/><rect x="2" y="14" width="20" height="8" rx="2"/><line x1="6" y1="6" x2="6.01" y2="6"/><line x1="6" y1="18" x2="6.01" y2="18"/></svg>`,
+  Mac:`<svg viewBox="0 0 24 24"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg>`,
+  PC:`<svg viewBox="0 0 24 24"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg>`,
+  Linux:`<svg viewBox="0 0 24 24"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg>`,
+  SNMP:`<svg viewBox="0 0 24 24"><rect x="1" y="4" width="22" height="16" rx="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg>`,
+  Laptop:`<svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="12" rx="2"/><path d="M2 19h20"/></svg>`,
+};
+
+function statusLabel(s) {
+  return s === 'offline' ? 'Hors ligne' : 'En ligne';
+}
+
+function renderKpis(list) {
+  const total = list.length;
+  const online = list.filter((d) => d.status === 'online').length;
+  const offline = Math.max(0, total - online);
+  const servers = list.filter((d) => String(d.type).toLowerCase().includes('server')).length;
+  const workstations = list.filter((d) => ['pc', 'mac', 'laptop'].includes(String(d.type).toLowerCase())).length;
+  const snmp = list.filter((d) => String(d.type).toLowerCase().includes('snmp')).length;
+  const vals = document.querySelectorAll('.kpi-strip .kpi-value');
+  if (vals[0]) vals[0].textContent = String(total);
+  if (vals[1]) vals[1].textContent = String(online);
+  if (vals[2]) vals[2].textContent = String(offline);
+  if (vals[3]) vals[3].textContent = String(servers);
+  if (vals[4]) vals[4].textContent = String(workstations);
+  if (vals[5]) vals[5].textContent = String(snmp);
+}
+
+function currentDevices() {
+  return filterDepartment ? allDevices.filter((d) => d.department === filterDepartment) : allDevices;
+}
+
+function renderDevices() {
+  const list = currentDevices();
+  renderKpis(list);
+  document.getElementById('device-grid').innerHTML = list.map(d => `
+  <div class="device-card">
+    <div class="device-card-header">
+      <div class="device-icon">${svgs[d.type]||svgs.PC}</div>
+      <div class="device-status">
+        <span class="status-dot ${d.status}"></span>
+        <span style="color:var(--text-muted)">${statusLabel(d.status)}</span>
+      </div>
+    </div>
+    <div class="device-name">${d.name}</div>
+    <div class="device-meta">${d.os || d.type}</div>
+    <div class="device-meta">${d.ip} · ${d.department}${d.service ? ' · ' + d.service : ''}</div>
+    <div class="device-tags">${(d.tags || [d.type]).map(t=>`<span class="device-tag">${t}</span>`).join('')}</div>
+    <div class="device-actions">
+      <button type="button" class="btn-secondary" onclick="editDevice(${d.id})">Modifier</button>
+      <button type="button" class="btn-secondary" onclick="deleteDevice(${d.id})">Supprimer</button>
+    </div>
+  </div>
+`).join('');
+}
+
+function syncDepartmentOptions(selectedDepartment, selectedService) {
+  const depSel = document.getElementById('dv-department');
+  const svcSel = document.getElementById('dv-service');
+  if (!depSel || !svcSel) return;
+  depSel.innerHTML = (DB.departments || []).map((d) => `<option value="${d.name}">${d.name}</option>`).join('');
+  if (selectedDepartment) depSel.value = selectedDepartment;
+  const services = getDepartmentServices(depSel.value);
+  if (!services.length) {
+    svcSel.innerHTML = '<option value="">Aucun service</option><option value="__new__">+ Créer un service...</option>';
+    svcSel.value = '';
+    svcSel.disabled = false;
+    setServiceCreateMode(false);
+  } else {
+    svcSel.disabled = false;
+    svcSel.innerHTML = `<option value="">Choisir un service</option>${services.map((s) => `<option value="${s}">${s}</option>`).join('')}<option value="__new__">+ Créer un service...</option>`;
+    const safeSelected = services.includes(selectedService || '') ? (selectedService || '') : '';
+    svcSel.value = safeSelected;
+    setServiceCreateMode(svcSel.value === '__new__');
+  }
+}
+
+function openDeviceModal(editItem) {
+  document.getElementById('device-modal').classList.add('open');
+  document.getElementById('device-modal-title').textContent = editItem ? 'Modifier appareil' : 'Ajouter appareil';
+  document.getElementById('dv-id').value = editItem ? String(editItem.id) : '';
+  document.getElementById('dv-name').value = editItem ? editItem.name : '';
+  document.getElementById('dv-type').value = editItem ? editItem.type : '';
+  document.getElementById('dv-ip').value = editItem ? editItem.ip : '';
+  document.getElementById('dv-status').value = editItem ? editItem.status : 'online';
+  document.getElementById('dv-service-new').value = '';
+  syncDepartmentOptions(editItem ? editItem.department : filterDepartment, editItem ? (editItem.service || '') : '');
+}
+
+function closeDeviceModal() {
+  document.getElementById('device-modal').classList.remove('open');
+}
+
+window.editDevice = function(id) {
+  const item = allDevices.find((d) => d.id === id);
+  if (!item) return;
+  openDeviceModal(item);
+};
+
+window.deleteDevice = function(id) {
+  if (!confirm('Supprimer cet appareil ?')) return;
+  allDevices = allDevices.filter((d) => d.id !== id);
+  if (typeof ApiClient !== 'undefined') void ApiClient.deleteDevice(id);
+  persistDepartmentDevices(allDevices);
+  renderDevices();
+};
+
+function saveDevice() {
+  const idRaw = document.getElementById('dv-id').value;
+  const payload = {
+    name: document.getElementById('dv-name').value.trim(),
+    type: document.getElementById('dv-type').value.trim() || 'PC',
+    ip: document.getElementById('dv-ip').value.trim(),
+    department: document.getElementById('dv-department').value,
+    service: '',
+    status: document.getElementById('dv-status').value,
+    tags: []
+  };
+  if (!payload.name || !payload.department) return;
+  const selectedService = document.getElementById('dv-service').value;
+  if (selectedService === '__new__') {
+    const newService = document.getElementById('dv-service-new').value.trim();
+    if (!newService) return;
+    payload.service = newService;
+    const list = Array.isArray(departmentServiceMap[payload.department]) ? departmentServiceMap[payload.department] : [];
+    if (!list.some((s) => String(s).toLowerCase() === newService.toLowerCase())) {
+      departmentServiceMap[payload.department] = [...list, newService];
+      persistDepartmentServiceMap();
+      const dep = (DB.departments || []).find((d) => d.name === payload.department);
+      if (dep && typeof ApiClient !== 'undefined') {
+        const mergedServices = Array.isArray(dep.services) ? [...new Set([...dep.services, newService])] : [newService];
+        dep.services = mergedServices;
+        void ApiClient.upsertDepartment({ ...dep, services: mergedServices });
+      }
+    }
+  } else {
+    payload.service = document.getElementById('dv-service').disabled ? '' : selectedService;
+  }
+  payload.tags = [payload.type];
+  if (idRaw) {
+    const idx = allDevices.findIndex((d) => d.id === Number(idRaw));
+    if (idx >= 0) {
+      allDevices[idx] = { ...allDevices[idx], ...payload };
+      if (typeof ApiClient !== 'undefined') void ApiClient.upsertDevice(allDevices[idx]);
+    }
+  } else {
+    const nextId = allDevices.reduce((m, x) => Math.max(m, Number(x.id) || 0), 0) + 1;
+    const newDevice = { id: nextId, ...payload };
+    allDevices.push(newDevice);
+    if (typeof ApiClient !== 'undefined') void ApiClient.upsertDevice(newDevice);
+  }
+  persistDepartmentDevices(allDevices);
+  closeDeviceModal();
+  renderDevices();
+}
+
+if (filterDepartment) {
+  const title = document.querySelector('.page-title');
+  if (title) title.textContent = `Appareils - ${filterDepartment}`;
+}
+
+document.getElementById('btn-device-add')?.addEventListener('click', () => openDeviceModal(null));
+document.getElementById('btn-device-cancel')?.addEventListener('click', closeDeviceModal);
+document.getElementById('btn-device-save')?.addEventListener('click', saveDevice);
+document.getElementById('dv-department')?.addEventListener('change', () => {
+  syncDepartmentOptions(document.getElementById('dv-department').value, '');
+});
+document.getElementById('dv-service')?.addEventListener('change', () => {
+  setServiceCreateMode(document.getElementById('dv-service').value === '__new__');
+});
+document.getElementById('device-modal')?.addEventListener('click', (e) => {
+  if (e.target.id === 'device-modal') closeDeviceModal();
+});
+
+renderDevices();
+void hydrateDevicesAndDepartmentsFromApi().then(() => {
+  renderDevices();
+});
+</script>
+<script>Auth.enhanceUI();</script>
+</body>
+</html>
+
+
+
+
+
+

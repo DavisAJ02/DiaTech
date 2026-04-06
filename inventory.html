@@ -1,0 +1,562 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>DiaTech – IT Inventory</title>
+  <link rel="stylesheet" href="styles.css"/>
+  <link rel="preconnect" href="https://fonts.googleapis.com"/>
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+  <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,600&display=swap" rel="stylesheet"/>
+  <style>
+    .filter-bar { display:flex; gap:var(--layout-gap, 16px); align-items:center; margin-bottom:var(--layout-gap, 22px); flex-wrap:wrap; }
+    .inv-feedback {
+      display:none;
+      margin:-8px 0 14px;
+      padding:10px 12px;
+      border-radius:10px;
+      border:1px solid color-mix(in srgb, var(--accent3) 44%, transparent);
+      background:color-mix(in srgb, var(--accent3) 12%, var(--surface));
+      color:var(--text);
+      font-size:12px;
+      font-weight:600;
+    }
+    .inv-feedback.show { display:block; }
+    .inv-row-flash {
+      animation:inv-row-flash 1.8s ease;
+    }
+    @keyframes inv-row-flash {
+      0% { background: color-mix(in srgb, var(--accent3) 26%, transparent); }
+      100% { background: transparent; }
+    }
+    #inv-table {
+      table-layout:fixed;
+      width:100%;
+    }
+    #inv-table th,
+    #inv-table td {
+      padding:10px 10px;
+      vertical-align:middle;
+      word-break:break-word;
+      overflow-wrap:anywhere;
+    }
+    #inv-table .btn-secondary { white-space:nowrap; }
+    #inv-table th:nth-child(7),
+    #inv-table td:nth-child(7) {
+      width:12%;
+      min-width:132px;
+      white-space:nowrap;
+    }
+    #inv-table td:nth-child(7) .sla-badge {
+      white-space:nowrap;
+    }
+    #inv-table th:nth-child(1),
+    #inv-table td:nth-child(1) { width:8%; }
+    #inv-table th:nth-child(2),
+    #inv-table td:nth-child(2) { width:14%; }
+    #inv-table th:nth-child(3),
+    #inv-table td:nth-child(3) { width:11%; }
+    #inv-table th:nth-child(4),
+    #inv-table td:nth-child(4) { width:12%; }
+    #inv-table th:nth-child(5),
+    #inv-table td:nth-child(5) { width:11%; }
+    #inv-table th:nth-child(6),
+    #inv-table td:nth-child(6) { width:12%; }
+    #inv-table th:nth-child(8),
+    #inv-table td:nth-child(8) { width:9%; }
+    #inv-table th:nth-child(9),
+    #inv-table td:nth-child(9) { width:10%; }
+    #inv-table th:nth-child(10),
+    #inv-table td:nth-child(10) { width:9%; }
+    .table-responsive {
+      width:100%;
+      max-width:100%;
+      overflow:auto;
+      -webkit-overflow-scrolling:touch;
+    }
+    #cons-stock-table,
+    #cons-log-table {
+      width:100%;
+      table-layout:fixed;
+    }
+    #cons-stock-table th,
+    #cons-stock-table td,
+    #cons-log-table th,
+    #cons-log-table td {
+      padding:9px 10px;
+      vertical-align:middle;
+      overflow-wrap:anywhere;
+      word-break:break-word;
+    }
+    #cons-stock-table th:nth-child(5),
+    #cons-stock-table td:nth-child(5) {
+      width:20%;
+      min-width:130px;
+      white-space:nowrap;
+    }
+    #cons-log-table th:nth-child(2),
+    #cons-log-table td:nth-child(2) {
+      width:16%;
+      min-width:120px;
+      white-space:nowrap;
+    }
+    #cons-log-table td:nth-child(2) .sla-badge,
+    #cons-stock-table td:nth-child(5) .sla-badge {
+      white-space:nowrap;
+    }
+    #cons-stock-table th:nth-child(1), #cons-stock-table td:nth-child(1) { width:30%; }
+    #cons-stock-table th:nth-child(2), #cons-stock-table td:nth-child(2) { width:20%; }
+    #cons-stock-table th:nth-child(3), #cons-stock-table td:nth-child(3) { width:14%; }
+    #cons-stock-table th:nth-child(4), #cons-stock-table td:nth-child(4) { width:16%; }
+    #cons-log-table th:nth-child(1), #cons-log-table td:nth-child(1) { width:18%; }
+    #cons-log-table th:nth-child(3), #cons-log-table td:nth-child(3) { width:28%; }
+    #cons-log-table th:nth-child(4), #cons-log-table td:nth-child(4) { width:10%; }
+    #cons-log-table th:nth-child(5), #cons-log-table td:nth-child(5) { width:28%; }
+    #cons-stock-table tbody tr { cursor:pointer; }
+    #cons-stock-table tbody tr:hover td { background:color-mix(in srgb, var(--surface2) 88%, white 12%); }
+    #cons-stock-table tbody tr.menu-open td { background:color-mix(in srgb, var(--surface2) 82%, white 18%); box-shadow: inset 0 1px 0 rgba(255,255,255,.04), inset 0 -1px 0 rgba(255,255,255,.04); }
+    .cons-row-menu { position:fixed; width:fit-content; min-width:0; display:none; flex-direction:column; gap:3px; padding:7px; border-radius:15px; background:color-mix(in srgb, var(--surface) 96%, white 4%); border:1px solid color-mix(in srgb, var(--border) 84%, transparent); box-shadow:0 20px 36px rgba(15,23,42,.22); backdrop-filter:blur(12px); z-index:260; }
+    .cons-row-menu.show { display:flex; }
+    .cons-row-menu button { width:auto; min-width:146px; display:flex; align-items:center; gap:9px; justify-content:flex-start; text-align:left; padding:8px 11px; font-size:11.5px; font-weight:600; border-radius:12px; white-space:nowrap; }
+    .cons-row-menu button svg { width:15px; height:15px; stroke:currentColor; fill:none; stroke-width:1.9; flex-shrink:0; }
+    .cons-row-menu .btn-secondary:hover { background:color-mix(in srgb, var(--surface2) 86%, white 14%); }
+    #asset-category-new-wrap { display:none; }
+    #inv-kpis {
+      display:grid;
+      grid-template-columns:repeat(3, minmax(0, 1fr));
+      gap:16px;
+      align-items:stretch;
+    }
+    #inv-kpis .kpi-card {
+      min-height:112px;
+    }
+    .filter-select { background:var(--surface); border:1px solid var(--border); color:var(--text); border-radius:var(--radius-xs); padding:9px 14px; font-size:13px; font-family:var(--font-body); outline:none; transition:border-color .2s, box-shadow .2s; }
+    .filter-select:focus { border-color:var(--primary); box-shadow:0 0 0 3px var(--primary-muted); }
+    .inv-table-wrap { position:relative; overflow-x:auto; border-radius:var(--radius); border:1px solid var(--border-subtle); }
+    .inventory-table { width:100%; table-layout:fixed; font-size:11.5px; }
+    .inventory-table td, .inventory-table th { padding:8px 8px; }
+    .inventory-table th { font-size:10.5px; letter-spacing:.06em; }
+    .inventory-table th, .inventory-table td { overflow-wrap:anywhere; word-break:break-word; white-space:normal; }
+    .inventory-table th:nth-child(1), .inventory-table td:nth-child(1),
+    .inventory-table th:nth-child(2), .inventory-table td:nth-child(2),
+    .inventory-table th:nth-child(3), .inventory-table td:nth-child(3),
+    .inventory-table th:nth-child(4), .inventory-table td:nth-child(4),
+    .inventory-table th:nth-child(5), .inventory-table td:nth-child(5),
+    .inventory-table th:nth-child(6), .inventory-table td:nth-child(6),
+    .inventory-table th:nth-child(7), .inventory-table td:nth-child(7),
+    .inventory-table th:nth-child(8), .inventory-table td:nth-child(8),
+    .inventory-table th:nth-child(9), .inventory-table td:nth-child(9),
+    .inventory-table th:nth-child(10), .inventory-table td:nth-child(10),
+    .inventory-table th:nth-child(11), .inventory-table td:nth-child(11),
+    .inventory-table th:nth-child(12), .inventory-table td:nth-child(12) { width:8.3333%; }
+    .inventory-table tbody tr { cursor:pointer; }
+    .inventory-table tbody tr:hover td { background:color-mix(in srgb, var(--surface2) 88%, white 12%); }
+    .inventory-table tbody tr.menu-open td { background:color-mix(in srgb, var(--surface2) 82%, white 18%); box-shadow: inset 0 1px 0 rgba(255,255,255,.04), inset 0 -1px 0 rgba(255,255,255,.04); }
+    .inv-row-menu { position:fixed; width:fit-content; min-width:0; display:none; flex-direction:column; gap:3px; padding:7px; border-radius:15px; background:color-mix(in srgb, var(--surface) 96%, white 4%); border:1px solid color-mix(in srgb, var(--border) 84%, transparent); box-shadow:0 20px 36px rgba(15,23,42,.22); backdrop-filter:blur(12px); z-index:240; }
+    .inv-row-menu.show { display:flex; }
+    .inv-row-menu button { width:auto; min-width:124px; display:flex; align-items:center; gap:9px; justify-content:flex-start; text-align:left; padding:8px 11px; font-size:11.5px; font-weight:600; border-radius:12px; white-space:nowrap; }
+    .inv-row-menu button svg { width:15px; height:15px; stroke:currentColor; fill:none; stroke-width:1.9; flex-shrink:0; }
+    .inv-row-menu .btn-secondary:hover { background:color-mix(in srgb, var(--surface2) 86%, white 14%); }
+    .inv-summary { display:grid; grid-template-columns:repeat(auto-fit, minmax(min(100%, 280px), 1fr)); gap:var(--layout-gap, 20px); margin-bottom:var(--layout-gap, 22px); }
+    .inv-card { background:var(--surface); border:1px solid var(--border-subtle); border-radius:var(--radius); padding:18px 20px; box-shadow:var(--shadow-sm); min-width:0; }
+    .inv-card-label { font-size:11px; font-weight:600; color:var(--text-muted); text-transform:uppercase; letter-spacing:.04em; margin-bottom:6px; }
+    .inv-card-value { font-family:var(--font-head); font-size:22px; font-weight:700; letter-spacing:-.02em; }
+    .status-pill { display:inline-block; padding:3px 10px; border-radius:100px; font-size:11px; font-weight:600; }
+    .status-pill.purchase { background:color-mix(in srgb, var(--primary) 16%, transparent); color:var(--primary); }
+    .status-pill.assignment { background:color-mix(in srgb, var(--accent3) 18%, transparent); color:var(--accent3); }
+    .status-pill.maintenance { background:color-mix(in srgb, #f59e0b 22%, transparent); color:#b45309; }
+    .status-pill.retirement { background:var(--surface2); color:var(--text-muted); }
+    .status-pill.in-use { background:color-mix(in srgb, var(--accent3) 18%, transparent); color:var(--accent3); }
+    .status-pill.in-stock { background:color-mix(in srgb, var(--primary) 16%, transparent); color:var(--primary); }
+    .status-pill.retired { background:var(--surface2); color:var(--text-muted); }
+    #asset-modal { display:none; position:fixed; inset:0; background:rgba(12,17,29,.45); backdrop-filter:blur(6px); z-index:200; align-items:center; justify-content:center; padding:20px; }
+    #asset-modal.open { display:flex; }
+    #consumable-modal { display:none; position:fixed; inset:0; background:rgba(12,17,29,.45); backdrop-filter:blur(6px); z-index:220; align-items:center; justify-content:center; padding:20px; }
+    #consumable-modal.open { display:flex; }
+    #cons-move-modal { display:none; position:fixed; inset:0; background:rgba(12,17,29,.45); backdrop-filter:blur(6px); z-index:225; align-items:center; justify-content:center; padding:20px; }
+    #cons-move-modal.open { display:flex; }
+    .modal-box { background:var(--surface); border:1px solid var(--border-subtle); border-radius:var(--radius); padding:28px; width:min(560px,96vw); max-height:90vh; overflow-y:auto; box-shadow:var(--shadow-lg); }
+    .form-hint { font-size:11px; color:var(--text-muted); margin-top:4px; line-height:1.4; }
+    .modal-box h3 { font-family:var(--font-head); font-size:18px; font-weight:600; letter-spacing:-.02em; margin-bottom:20px; }
+    .form-row { display:flex; flex-direction:column; gap:7px; margin-bottom:14px; }
+    .form-row label { font-size:12px; font-weight:600; color:var(--text-muted); }
+    .form-row input, .form-row select { background:var(--surface2); border:1px solid var(--border); color:var(--text); border-radius:var(--radius-xs); padding:10px 14px; font-size:13px; font-family:var(--font-body); outline:none; }
+    .form-row input:focus, .form-row select:focus { border-color:var(--primary); box-shadow:0 0 0 3px var(--primary-muted); }
+    .form-error { font-size:12px; color:var(--accent); min-height:18px; margin-bottom:8px; }
+    .modal-actions { display:flex; gap:10px; justify-content:flex-end; margin-top:8px; }
+
+    .data-table td { vertical-align:middle; }
+    #history-modal { display:none; position:fixed; inset:0; background:rgba(12,17,29,.45); backdrop-filter:blur(6px); z-index:210; align-items:center; justify-content:center; padding:20px; }
+    #history-modal.open { display:flex; }
+    .history-modal-box { background:var(--surface); border:1px solid var(--border-subtle); border-radius:var(--radius); padding:24px 28px; width:min(480px,96vw); max-height:85vh; overflow:hidden; display:flex; flex-direction:column; box-shadow:var(--shadow-lg); }
+    .history-modal-box h3 { font-family:var(--font-head); font-size:17px; font-weight:600; margin:0 0 6px; letter-spacing:-.02em; }
+    .history-modal-sub { font-size:12px; color:var(--text-muted); margin-bottom:18px; }
+    .history-list { overflow-y:auto; flex:1; display:flex; flex-direction:column; gap:0; border-top:1px solid var(--border-subtle); padding-top:12px; }
+    .history-item { position:relative; padding:10px 0 10px 18px; border-left:2px solid var(--border); margin-left:6px; font-size:13px; line-height:1.45; }
+    .history-item:last-child { padding-bottom:4px; }
+    .history-item::before { content:""; position:absolute; left:-7px; top:14px; width:10px; height:10px; border-radius:50%; background:var(--primary); border:2px solid var(--surface); }
+    .history-item-meta { font-size:11px; color:var(--text-muted); margin-top:4px; }
+    .history-empty { color:var(--text-muted); font-size:13px; padding:16px 0; text-align:center; }
+    @media (max-width: 1200px) {
+      .inventory-table { font-size:10.5px; }
+      .inventory-table th { font-size:9.7px; }
+      .inventory-table td, .inventory-table th { padding:6px 6px; }
+      .status-pill { font-size:10px; padding:2px 8px; }
+      #inv-kpis { grid-template-columns:repeat(3, minmax(0, 1fr)); }
+      #inv-table th, #inv-table td { padding:8px 8px; }
+      #inv-table th:nth-child(7), #inv-table td:nth-child(7) { min-width:120px; }
+      #inv-table { font-size:12px; }
+      #cons-stock-table th, #cons-stock-table td,
+      #cons-log-table th, #cons-log-table td { padding:8px 8px; font-size:12px; }
+      #cons-log-table th:nth-child(2), #cons-log-table td:nth-child(2) { min-width:110px; }
+      #cons-stock-table th:nth-child(5), #cons-stock-table td:nth-child(5) { min-width:118px; }
+    }
+    @media (max-width: 900px) {
+      #inv-kpis { grid-template-columns:repeat(2, minmax(0, 1fr)); }
+    }
+    @media (max-width: 640px) {
+      #inv-kpis { grid-template-columns:1fr; }
+    }
+    @media (max-width: 1100px) {
+      .filter-bar #inv-search { width:100% !important; max-width:none; }
+      .filter-bar #inv-sort { margin-left:0 !important; }
+      .inv-table-wrap { border:none; overflow:visible; }
+      .inventory-table { width:100%; font-size:12px; }
+      .inventory-table thead { display:none; }
+      .inventory-table, .inventory-table tbody, .inventory-table tr, .inventory-table td {
+        display:block;
+        width:100%;
+      }
+      .inventory-table tr {
+        background:var(--surface);
+        border:1px solid var(--border-subtle);
+        border-radius:12px;
+        margin-bottom:12px;
+        padding:6px 10px;
+      }
+      .inventory-table td {
+        border:0;
+        padding:8px 0;
+        display:grid;
+        grid-template-columns:minmax(116px, 38%) 1fr;
+        gap:8px;
+        align-items:start;
+        white-space:normal !important;
+        min-width:0 !important;
+      }
+      .inventory-table td::before {
+        content:attr(data-label);
+        color:var(--text-muted);
+        font-size:10px;
+        font-weight:700;
+        letter-spacing:.04em;
+        text-transform:uppercase;
+      }
+    }
+  </style>
+</head>
+<body>
+<script src="data.js"></script>
+<script src="i18n.js"></script>
+<script src="auth.js"></script>
+<script>Auth.guard();</script>
+
+<aside class="sidebar">
+  <div class="sidebar-logo">
+    <span class="logo-mark">
+      <img src="assets/sidebar-logo.png" alt="DiaTech" decoding="async"
+        style="width:100%;height:100%;object-fit:contain;border-radius:8px;" />
+    </span>
+    <span class="logo-text">DiaTech</span>
+  </div>
+  <nav class="sidebar-nav">
+    <a href="index.html" class="nav-item" title="Dashboard">
+      <svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg>
+      <span>Dashboard</span>
+    </a>
+    <a href="tickets.html" class="nav-item" title="Tickets">
+      <svg viewBox="0 0 24 24"><path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/></svg>
+      <span>Tickets</span>
+    </a>
+    <a href="departments.html" class="nav-item" title="Départements">
+      <svg viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75"/></svg>
+      <span>Départements</span>
+    </a>
+    <a href="devices.html" class="nav-item" title="Devices">
+      <svg viewBox="0 0 24 24"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg>
+      <span>Devices</span>
+    </a>
+    <a href="inventory.html" class="nav-item active" title="Inventory">
+      <svg viewBox="0 0 24 24"><path d="M21 16V8a2 2 0 00-1-1.73l-7-4a2 2 0 00-2 0l-7 4A2 2 0 003 8v8a2 2 0 001 1.73l7 4a2 2 0 002 0l7-4A2 2 0 0021 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg>
+      <span>Inventory</span>
+    </a>
+    <a href="budget.html" class="nav-item" title="Budget">
+      <svg viewBox="0 0 24 24"><rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/></svg>
+      <span>Budget</span>
+    </a>
+    <a href="alerts.html" class="nav-item" title="Alerts">
+      <svg viewBox="0 0 24 24"><path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9M13.73 21a2 2 0 01-3.46 0"/></svg>
+      <span>Alerts</span>
+    </a>
+    <a href="reports.html" class="nav-item" title="Reports">
+      <svg viewBox="0 0 24 24"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
+      <span>Reports</span>
+    </a>
+    <a href="it-analytics.html" class="nav-item" title="IT Analytics">
+      <svg viewBox="0 0 24 24"><path d="M3 3v18h18"/><path d="M7 16V8"/><path d="M12 16v-5"/><path d="M17 16v-9"/></svg>
+      <span>Analytics</span>
+    </a>
+  </nav>
+  <div class="sidebar-footer sidebar-footer--auth">
+    <div class="sidebar-avatar">··</div>
+    <button type="button" class="sidebar-logout auth-logout-btn" title="Déconnexion">Déconnexion</button>
+  </div>
+</aside>
+<script src="sidebar-nav.js"></script>
+<script src="topbar-user-menu.js"></script>
+<script src="page-polish.js"></script>
+
+<main class="main-content">
+  <div class="container">
+  <header class="topbar header">
+    <div class="topbar-left header-left">
+      <h1 class="page-title">IT Inventory</h1>
+    </div>
+    <div class="topbar-right header-right"></div>
+  </header>
+
+  <div class="content-pad">
+    <div class="kpi-strip" style="padding:0; margin-bottom:24px" id="inv-kpis">
+      <div class="kpi-card" data-color="blue">
+        <div class="kpi-label">Total equipements</div>
+        <div class="kpi-value" id="inv-kpi-total">0</div>
+        <div class="kpi-sub" id="inv-kpi-sub-total">Tous types confondus</div>
+      </div>
+      <div class="kpi-card" data-color="green">
+        <div class="kpi-label">Bon etat</div>
+        <div class="kpi-value" id="inv-kpi-bon">0</div>
+        <div class="kpi-sub" id="inv-kpi-sub-bon">Operationnels</div>
+      </div>
+      <div class="kpi-card" data-color="yellow">
+        <div class="kpi-label">Etat moyen</div>
+        <div class="kpi-value" id="inv-kpi-moyen">0</div>
+        <div class="kpi-sub">A surveiller</div>
+      </div>
+      <div class="kpi-card" data-color="red">
+        <div class="kpi-label">Mauvais etat</div>
+        <div class="kpi-value" id="inv-kpi-mauvais">0</div>
+        <div class="kpi-sub">Remplacement urgent</div>
+      </div>
+      <div class="kpi-card" data-color="pink">
+        <div class="kpi-label">A remplacer (<=2026)</div>
+        <div class="kpi-value" id="inv-kpi-replace">0</div>
+        <div class="kpi-sub">Planifier budget</div>
+      </div>
+      <div class="kpi-card" data-color="teal">
+        <div class="kpi-label">Stock critique</div>
+        <div class="kpi-value" id="inv-kpi-stock">0</div>
+        <div class="kpi-sub">Consommables sous seuil</div>
+      </div>
+    </div>
+
+    <div class="tab-bar" id="inv-tabs" style="margin-bottom:20px">
+      <button class="tab active" data-inv-tab="all">Tous</button>
+      <button class="tab" data-inv-tab="Ordinateur">Ordinateurs</button>
+      <button class="tab" data-inv-tab="Imprimante">Imprimantes</button>
+      <button class="tab" data-inv-tab="Telephone CISCO">Telephones CISCO</button>
+      <button class="tab" data-inv-tab="Tablette">Tablettes</button>
+      <button class="tab" data-inv-tab="Dymo">Dymo</button>
+      <button class="tab" data-inv-tab="consumables">Consommables</button>
+    </div>
+
+    <div class="filter-bar" style="margin-bottom:16px; display:flex; gap:10px; flex-wrap:wrap; align-items:center">
+      <input type="text" id="inv-search" class="search-inline" placeholder="Rechercher equipement, departement..." style="width:240px"/>
+      <select id="inv-filter-condition" class="filter-select">
+        <option value="">Tous les etats</option>
+        <option value="bon">Bon etat</option>
+        <option value="moyen">Etat moyen</option>
+        <option value="mauvais">Mauvais etat</option>
+      </select>
+      <select id="inv-filter-location" class="filter-select">
+        <option value="">Tous les emplacements</option>
+        <option value="Villa Covid">Villa Covid</option>
+        <option value="Rez-de-chaussee">Rez-de-chaussee</option>
+        <option value="Premier niveau">Premier niveau</option>
+        <option value="Deuxieme niveau">Deuxieme niveau</option>
+        <option value="Stock IT">Stock IT</option>
+      </select>
+      <select id="inv-sort" class="filter-select" style="margin-left:auto">
+        <option value="name-asc">Tri: Nom (A-Z)</option>
+        <option value="department-asc">Tri: Departement (A-Z)</option>
+        <option value="condition-asc">Tri: Etat (bon -> mauvais)</option>
+        <option value="replacementYear-asc">Tri: Remplacement (croissant)</option>
+        <option value="replacementYear-desc">Tri: Remplacement (decroissant)</option>
+      </select>
+      <button class="btn-primary" id="btn-add-asset" style="margin-left:auto">
+        <svg viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+        Ajouter equipement
+      </button>
+    </div>
+    <div class="inv-feedback" id="inv-feedback" aria-live="polite"></div>
+
+    <div class="card card-fullwidth" id="inv-equipment-section">
+      <div class="card-header">
+        <h2 id="inv-table-title">Tous les equipements</h2>
+        <span class="chart-hint" id="inv-table-count"></span>
+      </div>
+      <div class="table-responsive">
+        <table class="data-table" id="inv-table">
+          <thead>
+            <tr>
+              <th>ID</th>
+              <th>Equipement</th>
+              <th>Categorie</th>
+              <th>Departement</th>
+              <th>Emplacement</th>
+              <th>Utilisateur</th>
+              <th>Etat</th>
+              <th>Acquisition</th>
+              <th>Remplacement</th>
+              <th>Action</th>
+            </tr>
+          </thead>
+          <tbody id="inv-table-body"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <div id="inv-consumables-section" style="display:none">
+      <div class="dashboard-grid-cq">
+        <div class="dashboard-grid" style="grid-template-columns:1fr 1fr; margin-bottom:var(--layout-gap)">
+          <div class="card">
+            <div class="card-header"><h2>Stock consommables</h2></div>
+            <table class="data-table" id="cons-stock-table">
+              <thead><tr><th>Consommable</th><th>Categorie</th><th>Stock</th><th>Seuil min</th><th>Statut</th></tr></thead>
+              <tbody id="cons-stock-body"></tbody>
+            </table>
+          </div>
+          <div class="card">
+            <div class="card-header"><h2>Derniers mouvements</h2></div>
+            <table class="data-table" id="cons-log-table">
+              <thead><tr><th>Date</th><th>Type</th><th>Article</th><th>Qte</th><th>Departement</th></tr></thead>
+              <tbody id="cons-log-body"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  </div>
+</main>
+
+<div id="asset-modal" aria-hidden="true">
+  <div class="modal-box" role="dialog" aria-labelledby="asset-modal-title">
+    <h3 id="asset-modal-title">Ajouter equipement</h3>
+    <input type="hidden" id="asset-id" value=""/>
+    <div class="form-row"><label for="asset-name">Equipement</label><input type="text" id="asset-name" placeholder="Ex: Lenovo T490"/></div>
+    <div class="form-row"><label for="asset-category">Categorie</label><select id="asset-category"></select></div>
+    <div class="form-row" id="asset-category-new-wrap"><label for="asset-category-new">Nouvelle categorie</label><input type="text" id="asset-category-new" placeholder="Ex: Serveur, Scanner..."/></div>
+    <div class="form-row"><label for="asset-specs">Specifications</label><input type="text" id="asset-specs" placeholder="Ex: i5 / 8Go / 500Go"/></div>
+    <div class="form-row"><label for="asset-type">Type</label><input type="text" id="asset-type" placeholder="Ex: Laptop, Tablette..."/></div>
+    <div class="form-row"><label for="asset-assignee">Utilisateur</label><input type="text" id="asset-assignee" placeholder="Ex: David-Adrien"/></div>
+    <div class="form-row"><label for="asset-department">Departement</label><select id="asset-department"></select></div>
+    <div class="form-row"><label for="asset-location">Emplacement</label><input type="text" id="asset-location" placeholder="Ex: Rez-de-chaussee"/></div>
+    <div class="form-row"><label for="asset-condition">Etat</label><select id="asset-condition">
+      <option value="bon">Bon etat</option>
+      <option value="moyen">Etat moyen</option>
+      <option value="mauvais">Mauvais etat</option>
+    </select></div>
+    <div class="form-row"><label for="asset-acquisition-year">Annee acquisition</label><input type="number" id="asset-acquisition-year" min="2000" max="2100" step="1"/></div>
+    <div class="form-row"><label for="asset-replacement-year">Annee remplacement</label><input type="number" id="asset-replacement-year" min="2000" max="2100" step="1"/></div>
+    <div class="form-row"><label for="asset-status">Statut</label><select id="asset-status">
+      <option value="in-use">En service</option>
+      <option value="in-stock">En stock</option>
+      <option value="retired">Retire</option>
+    </select></div>
+    <div class="form-row"><label for="asset-lifecycle">Cycle</label><select id="asset-lifecycle">
+      <option value="purchase">Purchase</option>
+      <option value="assignment">Assignment</option>
+      <option value="maintenance">Maintenance</option>
+      <option value="retirement">Retirement</option>
+    </select></div>
+    <div class="form-error" id="asset-form-error"></div>
+    <div class="modal-actions">
+      <button type="button" class="btn-secondary" id="asset-modal-cancel">Annuler</button>
+      <button type="button" class="btn-primary" id="asset-modal-save">Enregistrer</button>
+    </div>
+  </div>
+</div>
+
+<div class="cons-row-menu" id="cons-row-menu" aria-hidden="true">
+  <button type="button" class="btn-secondary" id="cons-row-in"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 19V5"/><path d="M6 11l6-6 6 6"/></svg><span>Entrée stock</span></button>
+  <button type="button" class="btn-secondary" id="cons-row-out"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14"/><path d="M18 13l-6 6-6-6"/></svg><span>Sortie stock</span></button>
+  <button type="button" class="btn-primary" id="cons-row-edit"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 1 1 3 3L7 19l-4 1 1-4 12.5-12.5z"/></svg><span>Modifier</span></button>
+  <button type="button" class="btn-secondary" id="cons-row-delete"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/></svg><span>Supprimer</span></button>
+</div>
+
+<div id="consumable-modal" aria-hidden="true">
+  <div class="modal-box" role="dialog" aria-labelledby="consumable-modal-title">
+    <h3 id="consumable-modal-title">Ajouter consommable</h3>
+    <input type="hidden" id="cons-id" value=""/>
+    <div class="form-row"><label for="cons-name">Nom</label><input type="text" id="cons-name" placeholder="Ex: Canon C-EXV 42"/></div>
+    <div class="form-row"><label for="cons-category">Categorie</label><input type="text" id="cons-category" placeholder="Ex: Cartouche"/></div>
+    <div class="form-row"><label for="cons-stock">Stock actuel</label><input type="number" id="cons-stock" min="0" step="1"/></div>
+    <div class="form-row"><label for="cons-min">Seuil minimum</label><input type="number" id="cons-min" min="0" step="1"/></div>
+    <div class="form-row"><label for="cons-unit">Unite</label><input type="text" id="cons-unit" placeholder="Ex: unite, rouleau"/></div>
+    <div class="form-row"><label for="cons-last-move">Dernier mouvement</label><input type="date" id="cons-last-move"/></div>
+    <div class="form-row"><label for="cons-supplier">Fournisseur</label><input type="text" id="cons-supplier" placeholder="Ex: Smartcom"/></div>
+    <div class="form-error" id="cons-form-error"></div>
+    <div class="modal-actions">
+      <button type="button" class="btn-secondary" id="cons-cancel">Annuler</button>
+      <button type="button" class="btn-primary" id="cons-save">Enregistrer</button>
+    </div>
+  </div>
+</div>
+
+<div id="cons-move-modal" aria-hidden="true">
+  <div class="modal-box" role="dialog" aria-labelledby="cons-move-title">
+    <h3 id="cons-move-title">Mouvement stock</h3>
+    <input type="hidden" id="cons-move-type" value="entree"/>
+    <div class="form-row"><label for="cons-move-date">Date</label><input type="date" id="cons-move-date"/></div>
+    <div class="form-row"><label for="cons-move-item">Article</label><select id="cons-move-item"></select></div>
+    <div class="form-row"><label for="cons-move-qty">Qte</label><input type="number" id="cons-move-qty" min="1" step="1"/></div>
+    <div class="form-row" id="cons-move-department-wrap"><label for="cons-move-department">Departement</label><select id="cons-move-department"></select></div>
+    <div class="form-row" id="cons-move-department-new-wrap" style="display:none"><label for="cons-move-department-new">Nouveau departement</label><input type="text" id="cons-move-department-new" placeholder="Ajouter departement manquant"/></div>
+    <div class="form-row" id="cons-move-storage-wrap" style="display:none"><label for="cons-move-storage">Stockage</label><select id="cons-move-storage"></select></div>
+    <div class="form-row" id="cons-move-storage-new-wrap" style="display:none"><label for="cons-move-storage-new">Nouveau stockage</label><input type="text" id="cons-move-storage-new" placeholder="Ex: Stock TI, Stock warehouse"/></div>
+    <div class="form-error" id="cons-move-error"></div>
+    <div class="modal-actions">
+      <button type="button" class="btn-secondary" id="cons-move-cancel">Annuler</button>
+      <button type="button" class="btn-primary" id="cons-move-save">Valider</button>
+    </div>
+  </div>
+</div>
+
+<script src="inventory.js"></script>
+</body>
+</html>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

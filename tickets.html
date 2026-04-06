@@ -1,0 +1,556 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>DiaTech – Tickets</title>
+  <link rel="stylesheet" href="styles.css"/>
+  <link rel="preconnect" href="https://fonts.googleapis.com"/>
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+  <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,600&display=swap" rel="stylesheet"/>
+  <style>
+    .filter-bar { display:flex; gap:12px; align-items:center; margin-bottom:22px; flex-wrap:wrap; }
+    .filter-select { background:var(--surface); border:1px solid var(--border); color:var(--text); border-radius:var(--radius-xs); padding:9px 14px; font-size:13px; font-family:var(--font-body); outline:none; transition:border-color .2s, box-shadow .2s; }
+    .filter-select:focus { border-color:var(--primary); box-shadow:0 0 0 3px var(--primary-muted); }
+    .search-inline { background:var(--surface); border:1px solid var(--border); color:var(--text); border-radius:var(--radius-xs); padding:9px 14px; font-size:13px; font-family:var(--font-body); outline:none; width:220px; transition:border-color .2s, box-shadow .2s; }
+    .search-inline:focus { border-color:var(--primary); box-shadow:0 0 0 3px var(--primary-muted); }
+    .tab-bar { display:flex; gap:10px; margin-bottom:var(--layout-gap, 20px); flex-wrap:wrap; }
+    .tab { padding:9px 18px; border-radius:var(--radius-sm); font-size:13px; font-weight:600; cursor:pointer; background:var(--surface); border:1px solid var(--border); color:var(--text-muted); transition:background .2s, border-color .2s, color .2s, transform .2s; letter-spacing:-.01em; }
+    .tab:hover { background:var(--surface2); color:var(--text); border-color:color-mix(in srgb, var(--border) 80%, var(--primary-muted)); }
+    .tab.active { background:var(--primary); border-color:var(--primary); color:#fff; box-shadow:var(--shadow-xs); }
+    .ticket-count { background:var(--surface2); border:1px solid var(--border); padding:3px 9px; border-radius:100px; font-size:11px; font-weight:700; color:var(--text-muted); margin-left:6px; }
+    #new-ticket-modal, #edit-ticket-modal { display:none; position:fixed; inset:0; background:rgba(12,17,29,.45); backdrop-filter:blur(6px); z-index:200; align-items:center; justify-content:center; padding:20px; animation:modalBg .25s ease; }
+    #new-ticket-modal.open, #edit-ticket-modal.open { display:flex; }
+    @keyframes modalBg { from { opacity:0; } to { opacity:1; } }
+    .form-error { font-size:12px; color:var(--accent); margin-top:4px; min-height:18px; }
+    .ticket-actions { display:flex; gap:6px; flex-wrap:wrap; align-items:center; }
+    .assignee-cell { min-width: 0; }
+    .assignee-cell .assignee-name { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 140px; }
+    .sla-badge.status-open { color: var(--accent2); background: color-mix(in srgb, var(--accent2) 14%, transparent); }
+    .modal-box { background:var(--surface); border:1px solid var(--border-subtle); border-radius:var(--radius); padding:28px; width:440px; max-width:95vw; box-shadow:var(--shadow-lg); animation:modalIn .35s cubic-bezier(0.4,0,0.2,1) both; }
+    @keyframes modalIn { from { opacity:0; transform:scale(.96) translateY(8px); } to { opacity:1; transform:scale(1) translateY(0); } }
+    .modal-box h3 { font-family:var(--font-head); font-size:18px; font-weight:600; letter-spacing:-.02em; margin-bottom:20px; }
+    .form-row { display:flex; flex-direction:column; gap:7px; margin-bottom:16px; }
+    .form-row label { font-size:12px; font-weight:600; color:var(--text-muted); }
+    .form-row input, .form-row select, .form-row textarea { background:var(--surface2); border:1px solid var(--border); color:var(--text); border-radius:var(--radius-xs); padding:10px 14px; font-size:13px; font-family:var(--font-body); outline:none; transition:border-color .2s, box-shadow .2s; }
+    .form-row input:focus, .form-row select:focus, .form-row textarea:focus { border-color:var(--primary); box-shadow:0 0 0 3px var(--primary-muted); }
+    .form-row textarea { resize:vertical; min-height:88px; }
+    .modal-actions { display:flex; gap:10px; justify-content:flex-end; margin-top:12px; }
+  </style>
+</head>
+<body>
+<script src="data.js"></script>
+<script src="i18n.js"></script>
+<script src="auth.js"></script>
+<script src="api-client.js"></script>
+<script>Auth.guard();</script>
+
+<aside class="sidebar">
+  <div class="sidebar-logo">
+    <span class="logo-mark">
+      <img src="assets/sidebar-logo.png" alt="DiaTech" decoding="async"
+        style="width:100%;height:100%;object-fit:contain;border-radius:8px;" />
+    </span>
+    <span class="logo-text">DiaTech</span>
+  </div>
+  <nav class="sidebar-nav">
+    <a href="index.html" class="nav-item" title="Dashboard">
+      <svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg>
+      <span>Dashboard</span>
+    </a>
+    <a href="tickets.html" class="nav-item active" title="Tickets">
+      <svg viewBox="0 0 24 24"><path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/></svg>
+      <span>Tickets</span>
+    </a>
+    <a href="departments.html" class="nav-item" title="Départements">
+      <svg viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75"/></svg>
+      <span>Départements</span>
+    </a>
+    <a href="devices.html" class="nav-item" title="Devices">
+      <svg viewBox="0 0 24 24"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg>
+      <span>Devices</span>
+    </a>
+    <a href="inventory.html" class="nav-item" title="Inventory">
+      <svg viewBox="0 0 24 24"><path d="M21 16V8a2 2 0 00-1-1.73l-7-4a2 2 0 00-2 0l-7 4A2 2 0 003 8v8a2 2 0 001 1.73l7 4a2 2 0 002 0l7-4A2 2 0 0021 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg>
+      <span>Inventory</span>
+    </a>
+    <a href="budget.html" class="nav-item" title="Budget">
+      <svg viewBox="0 0 24 24"><rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/></svg>
+      <span>Budget</span>
+    </a>
+    <a href="alerts.html" class="nav-item" title="Alerts">
+      <svg viewBox="0 0 24 24"><path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9M13.73 21a2 2 0 01-3.46 0"/></svg>
+      <span>Alerts</span>
+    </a>
+    <a href="reports.html" class="nav-item" title="Reports">
+      <svg viewBox="0 0 24 24"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
+      <span>Reports</span>
+    </a>
+    <a href="it-analytics.html" class="nav-item" title="IT Analytics">
+      <svg viewBox="0 0 24 24"><path d="M3 3v18h18"/><path d="M7 16V8"/><path d="M12 16v-5"/><path d="M17 16v-9"/></svg>
+      <span>Analytics</span>
+    </a>
+  </nav>
+  <div class="sidebar-footer sidebar-footer--auth">
+    <div class="sidebar-avatar">··</div>
+    <button type="button" class="sidebar-logout auth-logout-btn" title="Déconnexion">Déconnexion</button>
+  </div>
+</aside>
+<script src="sidebar-nav.js"></script>
+<script src="topbar-user-menu.js"></script>
+<script src="page-polish.js"></script>
+
+<main class="main-content">
+  <div class="container">
+  <header class="topbar header">
+    <div class="topbar-left header-left">
+      <h1 class="page-title">Tickets</h1>
+    </div>
+    <div class="topbar-right header-right">
+      <button class="btn-primary" onclick="document.getElementById('new-ticket-modal').classList.add('open')">
+        <svg viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+        New Ticket
+      </button>
+      <button class="icon-btn" id="notif-btn" type="button" aria-label="Notifications">
+        <svg viewBox="0 0 24 24"><path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9M13.73 21a2 2 0 01-3.46 0"/></svg>
+        <span class="badge notification-badge">3</span>
+      </button>
+    </div>
+  </header>
+
+  <div class="content-pad">
+    <div class="tab-bar">
+      <button class="tab active" data-tab="all">All<span class="ticket-count" id="cnt-all">10</span></button>
+      <button class="tab" data-tab="open">Open<span class="ticket-count" id="cnt-open">—</span></button>
+      <button class="tab" data-tab="in-progress">In Progress<span class="ticket-count" id="cnt-in-progress">—</span></button>
+      <button class="tab" data-tab="critical">Critical<span class="ticket-count" id="cnt-critical">—</span></button>
+      <button class="tab" data-tab="unassigned">Unassigned<span class="ticket-count" id="cnt-unassigned">—</span></button>
+    </div>
+
+    <div class="filter-bar">
+      <input class="search-inline" type="text" id="ticket-search" placeholder="Search tickets…" />
+      <select class="filter-select" id="filter-priority">
+        <option value="">All Priorities</option>
+        <option value="critical">Critical</option>
+        <option value="high">High</option>
+        <option value="medium">Medium</option>
+        <option value="low">Low</option>
+      </select>
+      <select class="filter-select" id="filter-sla">
+        <option value="">All SLA</option>
+        <option value="breach">Breached</option>
+        <option value="warn">Warning</option>
+        <option value="ok">OK</option>
+      </select>
+    </div>
+
+    <div class="card card-fullwidth" style="padding:0">
+      <div class="table-responsive">
+      <table class="data-table" style="margin:0">
+        <thead>
+          <tr><th>ID</th><th>Details</th><th>Assignee</th><th>Priority</th><th>Status</th><th>SLA</th><th>Action</th></tr>
+        </thead>
+        <tbody id="tickets-full-body"></tbody>
+      </table>
+      </div>
+    </div>
+  </div>
+  </div>
+</main>
+
+<!-- New Ticket Modal -->
+<div id="new-ticket-modal">
+  <div class="modal-box">
+    <h3>Create New Ticket</h3>
+    <div class="form-row">
+      <label>Title</label>
+      <input type="text" id="nt-title" placeholder="Brief description of the issue" />
+    </div>
+    <div class="form-row">
+      <label>Priority</label>
+      <select id="nt-priority">
+        <option value="low">Low</option>
+        <option value="medium">Medium</option>
+        <option value="high">High</option>
+        <option value="critical">Critical</option>
+      </select>
+    </div>
+    <div class="form-row">
+      <label>Description</label>
+      <textarea id="nt-desc" placeholder="Additional details…"></textarea>
+    </div>
+    <div class="modal-actions">
+      <button class="btn-secondary" onclick="document.getElementById('new-ticket-modal').classList.remove('open')">Cancel</button>
+      <button class="btn-primary" onclick="submitNewTicket()">Create Ticket</button>
+    </div>
+  </div>
+</div>
+
+<!-- Edit Ticket Modal -->
+<div id="edit-ticket-modal">
+  <div class="modal-box">
+    <h3>Edit Ticket</h3>
+    <input type="hidden" id="et-id" />
+    <div class="form-row">
+      <label for="et-title">Title</label>
+      <input type="text" id="et-title" placeholder="Ticket title" autocomplete="off" />
+    </div>
+    <div class="form-row">
+      <label for="et-priority">Priority</label>
+      <select id="et-priority">
+        <option value="low">Low</option>
+        <option value="medium">Medium</option>
+        <option value="high">High</option>
+        <option value="critical">Critical</option>
+      </select>
+    </div>
+    <div class="form-row">
+      <label for="et-status">Status</label>
+      <select id="et-status">
+        <option value="open">Open</option>
+        <option value="in-progress">In Progress</option>
+        <option value="resolved">Resolved</option>
+      </select>
+    </div>
+    <div class="form-row">
+      <label for="et-agent">Assigner utilisateur</label>
+      <select id="et-agent">
+        <option value="">Unassigned</option>
+      </select>
+    </div>
+    <div class="form-error" id="edit-form-error" aria-live="polite"></div>
+    <div class="modal-actions">
+      <button type="button" class="btn-secondary" onclick="closeEditTicketModal()">Cancel</button>
+      <button type="button" class="btn-primary" onclick="saveEditTicket()">Save Changes</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// Theme
+const html = document.documentElement;
+const saved = localStorage.getItem('theme');
+if (saved) html.dataset.theme = saved;
+document.getElementById('theme-toggle')?.addEventListener('click', () => {
+  const isDark = html.dataset.theme === 'dark';
+  html.dataset.theme = isDark ? '' : 'dark';
+  localStorage.setItem('theme', isDark ? '' : 'dark');
+});
+
+let currentTab = 'all';
+let ticketsStore = Array.isArray(DB.tickets) ? DB.tickets : [];
+
+function isoNow() {
+  return new Date().toISOString();
+}
+
+function ensureTicketDateFields(list) {
+  const src = Array.isArray(list) ? list : [];
+  const baseTs = Date.now();
+  let changed = false;
+  const normalized = src.map((t, idx) => {
+    const next = { ...t };
+    if (!next.createdAt) {
+      const offsetHours = (src.length - idx) * 6;
+      next.createdAt = new Date(baseTs - offsetHours * 3600000).toISOString();
+      changed = true;
+    }
+    if (String(next.status || '').toLowerCase() === 'resolved') {
+      if (!next.resolvedAt) {
+        next.resolvedAt = isoNow();
+        changed = true;
+      }
+    } else if (next.resolvedAt) {
+      next.resolvedAt = null;
+      changed = true;
+    }
+    return next;
+  });
+  return { normalized, changed };
+}
+
+function syncTicketsState(list) {
+  const { normalized } = ensureTicketDateFields(list);
+  ticketsStore = normalized;
+  DB.tickets = ticketsStore;
+}
+
+async function hydrateTicketsFromApi() {
+  if (typeof ApiClient === 'undefined') return;
+  const localTickets = Array.isArray(DB.tickets) ? DB.tickets.slice() : [];
+  const remote = await ApiClient.getTickets();
+  if (!Array.isArray(remote)) return;
+  if (remote.length === 0 && localTickets.length > 0) {
+    await ApiClient.bootstrap({ tickets: localTickets });
+    const remoteAfterBootstrap = await ApiClient.getTickets();
+    if (Array.isArray(remoteAfterBootstrap)) {
+      syncTicketsState(remoteAfterBootstrap);
+      return;
+    }
+  }
+  const source = remote.length ? remote : localTickets;
+  const { normalized, changed } = ensureTicketDateFields(source);
+  syncTicketsState(normalized);
+  if (changed) {
+    normalized.forEach((t) => {
+      void ApiClient.upsertTicket(t);
+    });
+  }
+}
+
+function fillAssigneeSelect() {
+  const sel = document.getElementById('et-agent');
+  const users = getAssignableUsers();
+  sel.innerHTML =
+    '<option value="">Unassigned</option>' +
+    users.map((u) => `<option value="${u.id}">${u.name}</option>`).join('');
+}
+
+function priorityBadge(p) {
+  return `<span class="priority-badge ${p}">${p.charAt(0).toUpperCase()+p.slice(1)}</span>`;
+}
+function slaBadge(sla, cls) { return `<span class="sla-badge ${cls}">${sla}</span>`; }
+
+function safeHoursDelta(startIso, endIsoOrNow, targetHours) {
+  const start = startIso ? new Date(startIso) : null;
+  const end = endIsoOrNow ? new Date(endIsoOrNow) : new Date();
+  if (!start || Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) return null;
+  const elapsed = (end.getTime() - start.getTime()) / 3600000;
+  if (!Number.isFinite(elapsed)) return null;
+  return Number(targetHours) - elapsed;
+}
+
+function ticketSlaMeta(ticket) {
+  const fallbackLabel = ticket?.sla || '—';
+  const fallbackClass = ticket?.slaClass || 'ok';
+  const createdAt = ticket?.createdAt || null;
+  if (!createdAt) return { label: fallbackLabel, cls: fallbackClass };
+
+  const targetHours =
+    typeof getSlaTargetHoursForDate === 'function'
+      ? Number(getSlaTargetHoursForDate(createdAt)) || 4
+      : 4;
+  const isResolved = String(ticket?.status || '').toLowerCase() === 'resolved';
+  const endAt = isResolved ? ticket?.resolvedAt || isoNow() : isoNow();
+  const delta = safeHoursDelta(createdAt, endAt, targetHours);
+  if (delta == null) return { label: fallbackLabel, cls: fallbackClass };
+
+  const rounded = Math.ceil(Math.abs(delta));
+  const label = `${delta >= 0 ? '+' : '-'}${rounded}h`;
+  let cls = 'ok';
+  if (delta < 0) cls = 'breach';
+  else if (delta <= Math.max(1, targetHours * 0.25)) cls = 'warn';
+  return { label, cls };
+}
+
+function statusBadge(status) {
+  const s = status || 'open';
+  let cls = 'status-open';
+  let label = 'Open';
+  if (s === 'in-progress') { cls = 'warn'; label = 'In Progress'; }
+  if (s === 'resolved') { cls = 'ok'; label = 'Resolved'; }
+  return `<span class="sla-badge ${cls}">${label}</span>`;
+}
+
+function assigneeCell(assignedUserId) {
+  if (assignedUserId == null || assignedUserId === '') {
+    return `<button type="button" class="assign-btn" onclick="this.textContent='Assigned ✓';this.style.background='#10b981';this.disabled=true">Assigner</button>`;
+  }
+  const u = getUserById(assignedUserId);
+  const color = u?.avatarColor || '#64748b';
+  const label = u?.name || 'Unknown user';
+  const ini = u?.initials || '?';
+  return `<div class="assignee-cell"><div class="tech-avatar" style="background:${color}" title="${label}">${ini}</div><span class="assignee-name">${label}</span></div>`;
+}
+
+function renderTickets() {
+  const tickets = ticketsStore;
+  const search = document.getElementById('ticket-search').value.toLowerCase();
+  const pFilter = document.getElementById('filter-priority').value;
+  const sFilter = document.getElementById('filter-sla').value;
+
+  let filtered = tickets.filter(t => {
+    const slaMeta = ticketSlaMeta(t);
+    if (currentTab === 'open' && String(t.status || '').toLowerCase() !== 'open') return false;
+    if (currentTab === 'in-progress' && String(t.status || '').toLowerCase() !== 'in-progress') return false;
+    if (currentTab === 'critical' && t.priority !== 'critical') return false;
+    if (currentTab === 'unassigned' && t.assignedUserId) return false;
+    if (search && !t.title.toLowerCase().includes(search) && !String(t.id).includes(search)) return false;
+    if (pFilter && t.priority !== pFilter) return false;
+    if (sFilter && slaMeta.cls !== sFilter) return false;
+    return true;
+  });
+
+  document.getElementById('tickets-full-body').innerHTML = filtered.map(t => `
+    <tr>
+      <td><span class="ticket-id">#${t.id}</span></td>
+      <td class="ticket-name">${t.title}</td>
+      <td>${assigneeCell(t.assignedUserId)}</td>
+      <td>${priorityBadge(t.priority)}</td>
+      <td>${statusBadge(t.status)}</td>
+      <td>${(() => { const s = ticketSlaMeta(t); return slaBadge(s.label, s.cls); })()}</td>
+      <td class="ticket-actions">
+        <button type="button" class="btn-secondary" style="font-size:11px;padding:4px 10px">View</button>
+        <button type="button" class="btn-primary" style="font-size:11px;padding:4px 10px" data-edit-id="${t.id}">Edit</button>
+      </td>
+    </tr>
+  `).join('');
+
+  document.getElementById('cnt-all').textContent = tickets.length;
+  document.getElementById('cnt-open').textContent = tickets.filter(t => String(t.status || '').toLowerCase() === 'open').length;
+  document.getElementById('cnt-in-progress').textContent = tickets.filter(t => String(t.status || '').toLowerCase() === 'in-progress').length;
+  document.getElementById('cnt-critical').textContent = tickets.filter(t=>t.priority==='critical').length;
+  document.getElementById('cnt-unassigned').textContent = tickets.filter(t=>!t.assignedUserId).length;
+}
+
+document.querySelectorAll('.tab').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.tab').forEach(b=>b.classList.remove('active'));
+    btn.classList.add('active');
+    currentTab = btn.dataset.tab;
+    renderTickets();
+  });
+});
+document.getElementById('ticket-search').addEventListener('input', renderTickets);
+document.getElementById('filter-priority').addEventListener('change', renderTickets);
+document.getElementById('filter-sla').addEventListener('change', renderTickets);
+
+document.getElementById('tickets-full-body').addEventListener('click', (e) => {
+  const btn = e.target.closest('[data-edit-id]');
+  if (btn) openEditTicket(Number(btn.dataset.editId));
+});
+
+function openEditTicket(id) {
+  const t = DB.tickets.find(x => x.id === id);
+  if (!t) return;
+  document.getElementById('et-id').value = String(id);
+  document.getElementById('et-title').value = t.title;
+  document.getElementById('et-priority').value = t.priority;
+  document.getElementById('et-status').value = t.status || 'open';
+  document.getElementById('et-agent').value =
+    t.assignedUserId != null && getUserById(t.assignedUserId) ? String(t.assignedUserId) : '';
+  document.getElementById('edit-form-error').textContent = '';
+  document.getElementById('edit-ticket-modal').classList.add('open');
+}
+
+window.closeEditTicketModal = function() {
+  document.getElementById('edit-ticket-modal').classList.remove('open');
+  document.getElementById('edit-form-error').textContent = '';
+};
+
+window.saveEditTicket = function() {
+  const errEl = document.getElementById('edit-form-error');
+  errEl.textContent = '';
+  const id = Number(document.getElementById('et-id').value);
+  const title = document.getElementById('et-title').value.trim();
+  const priority = document.getElementById('et-priority').value;
+  const status = document.getElementById('et-status').value;
+  const agentVal = document.getElementById('et-agent').value;
+
+  if (!title) {
+    errEl.textContent = 'Title cannot be empty.';
+    return;
+  }
+  if (!priority) {
+    errEl.textContent = 'Please select a priority.';
+    return;
+  }
+  if (!status) {
+    errEl.textContent = 'Please select a status.';
+    return;
+  }
+  let assignedUserId = null;
+  if (agentVal !== '') {
+    const uid = Number(agentVal);
+    const assignable = getAssignableUsers().some((u) => u.id === uid);
+    if (!assignable || !getUserById(uid)) {
+      errEl.textContent = 'Please select a valid user.';
+      return;
+    }
+    assignedUserId = uid;
+  }
+
+  const t = DB.tickets.find(x => x.id === id);
+  if (!t) {
+    errEl.textContent = 'Ticket not found.';
+    return;
+  }
+  t.title = title;
+  t.priority = priority;
+  t.status = status;
+  t.assignedUserId = assignedUserId;
+  if (status === 'resolved') {
+    if (!t.resolvedAt) t.resolvedAt = isoNow();
+  } else {
+    t.resolvedAt = null;
+  }
+  if (!t.createdAt) t.createdAt = isoNow();
+  if (typeof ApiClient !== 'undefined') void ApiClient.upsertTicket(t);
+
+  closeEditTicketModal();
+  renderTickets();
+};
+
+document.getElementById('edit-ticket-modal').addEventListener('click', (e) => {
+  if (e.target.id === 'edit-ticket-modal') closeEditTicketModal();
+});
+
+window.submitNewTicket = function() {
+  const title = document.getElementById('nt-title').value.trim();
+  const priority = document.getElementById('nt-priority').value;
+  if (!title) return;
+  const nextId = ticketsStore.reduce((m, x) => Math.max(m, x.id), 0) + 1;
+  const newTicket = {
+    id: nextId,
+    title,
+    priority,
+    status: 'open',
+    sla: '+7d',
+    slaClass: 'ok',
+    assignedUserId: null,
+    createdAt: isoNow(),
+    resolvedAt: null
+  };
+  ticketsStore.unshift(newTicket);
+  DB.tickets = ticketsStore;
+  if (typeof ApiClient !== 'undefined') void ApiClient.upsertTicket(newTicket);
+  document.getElementById('new-ticket-modal').classList.remove('open');
+  document.getElementById('nt-title').value = '';
+  renderTickets();
+};
+
+function applyTicketUrlFilters() {
+  const params = new URLSearchParams(window.location.search);
+  const dept = params.get('department');
+  if (dept) {
+    const title = document.querySelector('.page-title');
+    if (title) title.textContent = `Tickets - ${dept}`;
+  }
+  const pr = params.get('priority');
+  if (pr) {
+    const sel = document.getElementById('filter-priority');
+    if (sel && [...sel.options].some(o => o.value === pr)) sel.value = pr;
+  }
+  const sla = params.get('sla');
+  if (sla) {
+    const sel = document.getElementById('filter-sla');
+    if (sel && [...sel.options].some(o => o.value === sla)) sel.value = sla;
+  }
+}
+
+fillAssigneeSelect();
+applyTicketUrlFilters();
+renderTickets();
+void hydrateTicketsFromApi().then(() => {
+  renderTickets();
+});
+Auth.enhanceUI();
+</script>
+</body>
+</html>
+
+
+
+
+
+

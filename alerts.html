@@ -1,0 +1,384 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>DiaTech – Alerts</title>
+  <link rel="stylesheet" href="styles.css"/>
+  <link rel="preconnect" href="https://fonts.googleapis.com"/>
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+  <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,600&display=swap" rel="stylesheet"/>
+  <style>
+    #alert-kpis {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 16px;
+      padding: 0;
+      margin-bottom: 22px;
+    }
+    #alert-kpis .kpi-card {
+      min-height: 0;
+      padding: 18px 18px 16px;
+      border-radius: 20px;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      gap: 10px;
+      box-shadow: 0 12px 28px rgba(15, 23, 42, 0.08);
+    }
+    #alert-kpis .kpi-label {
+      margin: 0;
+      font-size: 11px;
+      letter-spacing: .08em;
+    }
+    #alert-kpis .kpi-value {
+      font-size: 42px;
+      line-height: 1;
+      letter-spacing: -.04em;
+      margin: 0;
+    }
+    .alert-section-title { font-size:12px; font-weight:700; text-transform:uppercase; letter-spacing:.06em; color:var(--text-muted); margin:24px 0 12px; }
+    .alert-section-title:first-of-type { margin-top:0; }
+    .alert-row { display:flex; align-items:center; gap:14px; padding:14px 16px; background:var(--surface); border:1px solid var(--border); border-radius:14px; margin-bottom:10px; transition:box-shadow .2s, transform .2s; }
+    .alert-row:hover { box-shadow:var(--shadow-md); transform:translateY(-1px); }
+    .alert-row.acked { opacity:.72; }
+    .alert-icon-box { width:36px; height:36px; border-radius:10px; display:flex; align-items:center; justify-content:center; flex-shrink:0; }
+    .alert-icon-box svg { width:18px; height:18px; fill:none; stroke:currentColor; stroke-width:2; }
+    .alert-icon-box.critical { background:rgba(244,63,94,.1); color:var(--accent); }
+    .alert-icon-box.warning { background:rgba(245,158,11,.12); color:#d97706; }
+    .alert-icon-box.info { background:rgba(59,130,246,.1); color:var(--accent2); }
+    .alert-body { flex:1; min-width:0; }
+    .alert-title { font-weight:600; font-size:13.5px; color:var(--text); }
+    .alert-sub { font-size:12px; color:var(--text-muted); margin-top:2px; line-height:1.45; }
+    .alert-link { display:inline-block; margin-top:6px; font-size:12px; font-weight:600; color:var(--primary); text-decoration:none; }
+    .alert-link:hover { text-decoration:underline; }
+    .alert-time { font-size:11px; color:var(--text-subtle); flex-shrink:0; }
+    .ack-btn { background:var(--surface2); border:1px solid var(--border); color:var(--text-muted); border-radius:7px; padding:5px 12px; font-size:12px; font-weight:600; cursor:pointer; font-family:var(--font-body); transition:background .2s; flex-shrink:0; }
+    .ack-btn:hover:not(:disabled) { background:var(--border); }
+    .ack-btn.acked, .ack-btn:disabled { background:rgba(16,185,129,.1); color:var(--accent3); border-color:transparent; cursor:default; }
+    @media (max-width: 1024px) {
+      #alert-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    }
+    @media (max-width: 640px) {
+      #alert-kpis { grid-template-columns: 1fr; gap: 12px; }
+      #alert-kpis .kpi-card { padding: 16px; border-radius: 18px; }
+      #alert-kpis .kpi-value { font-size: 36px; }
+    }
+  </style>
+</head>
+<body>
+<script src="data.js"></script>
+<script src="i18n.js"></script>
+<script src="auth.js"></script>
+<script src="api-client.js"></script>
+<script>Auth.guard();</script>
+<aside class="sidebar">
+  <div class="sidebar-logo">
+    <span class="logo-mark">
+      <img src="assets/sidebar-logo.png" alt="DiaTech" decoding="async"
+        style="width:100%;height:100%;object-fit:contain;border-radius:8px;" />
+    </span>
+    <span class="logo-text">DiaTech</span>
+  </div>
+  <nav class="sidebar-nav">
+    <a href="index.html" class="nav-item"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg><span>Dashboard</span></a>
+    <a href="tickets.html" class="nav-item"><svg viewBox="0 0 24 24"><path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/></svg><span>Tickets</span></a>
+    <a href="departments.html" class="nav-item"><svg viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/></svg><span>Départements</span></a>
+    <a href="devices.html" class="nav-item"><svg viewBox="0 0 24 24"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg><span>Devices</span></a>
+    <a href="inventory.html" class="nav-item"><svg viewBox="0 0 24 24"><path d="M21 16V8a2 2 0 00-1-1.73l-7-4a2 2 0 00-2 0l-7 4A2 2 0 003 8v8a2 2 0 001 1.73l7 4a2 2 0 002 0l7-4A2 2 0 0021 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg><span>Inventory</span></a>
+    <a href="budget.html" class="nav-item"><svg viewBox="0 0 24 24"><rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/></svg><span>Budget</span></a>
+    <a href="alerts.html" class="nav-item active"><svg viewBox="0 0 24 24"><path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9M13.73 21a2 2 0 01-3.46 0"/></svg><span>Alerts</span></a>
+    <a href="reports.html" class="nav-item"><svg viewBox="0 0 24 24"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg><span>Reports</span></a>
+    <a href="it-analytics.html" class="nav-item"><svg viewBox="0 0 24 24"><path d="M3 3v18h18"/><path d="M7 16V8"/><path d="M12 16v-5"/><path d="M17 16v-9"/></svg><span>Analytics</span></a>
+  </nav>
+  <div class="sidebar-footer sidebar-footer--auth">
+    <div class="sidebar-avatar">··</div>
+    <button type="button" class="sidebar-logout auth-logout-btn" title="Déconnexion">Déconnexion</button>
+  </div>
+</aside>
+<script src="sidebar-nav.js"></script>
+<script src="topbar-user-menu.js"></script>
+<script src="page-polish.js"></script>
+<main class="main-content">
+  <div class="container">
+  <header class="topbar header">
+    <div class="topbar-left header-left"><h1 class="page-title">Alerts</h1></div>
+    
+  </header>
+  <div class="content-pad">
+    <div class="kpi-strip" id="alert-kpis" style="padding:0;margin-bottom:20px">
+      <div class="kpi-card" data-color="red"><div class="kpi-label">Critical</div><div class="kpi-value" id="kpi-crit">0</div></div>
+      <div class="kpi-card" data-color="yellow"><div class="kpi-label">Warning</div><div class="kpi-value" id="kpi-warn">0</div></div>
+      <div class="kpi-card" data-color="blue"><div class="kpi-label">Info</div><div class="kpi-value" id="kpi-info">0</div></div>
+      <div class="kpi-card" data-color="green"><div class="kpi-label">Acquittées</div><div class="kpi-value" id="kpi-ack">0</div></div>
+    </div>
+    <div id="alerts-list"></div>
+  </div>
+  </div>
+</main>
+<script>
+(function () {
+  const ACK_KEY = "nexusops_alert_ack_v1";
+  const params = new URLSearchParams(window.location.search);
+  const activeDepartment = (params.get("department") || "").trim();
+  const bulkAck = params.get("ack") === "1";
+
+  async function hydrateFromApi() {
+    if (typeof ApiClient === "undefined") return;
+    const localSnapshot = {
+      inventory: Array.isArray(DB.inventory) ? DB.inventory.slice() : [],
+      expenses: Array.isArray(DB.expenses) ? DB.expenses.slice() : [],
+      expenseMonthlyBudget: Number(DB.expenseMonthlyBudget) || 0,
+      alertRules: DB.alertRules && typeof DB.alertRules === "object" ? DB.alertRules : {},
+    };
+    const remote = await ApiClient.getAppData();
+    if (!remote || typeof remote !== "object") return;
+    const remoteEmpty =
+      !Array.isArray(remote.inventory) ||
+      remote.inventory.length === 0;
+    if (remoteEmpty && localSnapshot.inventory.length > 0) {
+      await ApiClient.bootstrap(localSnapshot);
+      const after = await ApiClient.getAppData();
+      if (after && typeof after === "object") {
+        if (Array.isArray(after.inventory)) DB.inventory = after.inventory;
+        if (Array.isArray(after.expenses)) DB.expenses = after.expenses;
+        if (after.expenseMonthlyBudget != null) DB.expenseMonthlyBudget = Number(after.expenseMonthlyBudget) || 0;
+        if (after.alertRules && typeof after.alertRules === "object") DB.alertRules = after.alertRules;
+      }
+      return;
+    }
+    if (Array.isArray(remote.inventory)) DB.inventory = remote.inventory;
+    if (Array.isArray(remote.expenses)) DB.expenses = remote.expenses;
+    if (remote.expenseMonthlyBudget != null) DB.expenseMonthlyBudget = Number(remote.expenseMonthlyBudget) || 0;
+    if (remote.alertRules && typeof remote.alertRules === "object") DB.alertRules = remote.alertRules;
+  }
+
+  function getAckedSet() {
+    try {
+      const raw = localStorage.getItem(ACK_KEY);
+      const arr = raw ? JSON.parse(raw) : [];
+      return new Set(Array.isArray(arr) ? arr : []);
+    } catch {
+      return new Set();
+    }
+  }
+
+  function saveAcked(set) {
+    localStorage.setItem(ACK_KEY, JSON.stringify([...set]));
+  }
+
+  function getAssetLifecycle(a) {
+    if (a.lifecycle) return a.lifecycle;
+    const m = { "in-stock": "purchase", "in-use": "assignment", maintenance: "maintenance", retired: "retirement" };
+    return m[a.status] || "purchase";
+  }
+
+  function moneyFmt(n) {
+    return new Intl.NumberFormat(undefined, { style: "currency", currency: "USD", maximumFractionDigits: 0 }).format(n);
+  }
+
+  function monthPrefix() {
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+  }
+
+  function sumExpensesThisMonth() {
+    const p = monthPrefix();
+    return (DB.expenses || []).reduce((s, e) => {
+      if (e.date && String(e.date).startsWith(p)) return s + (Number(e.amount) || 0);
+      return s;
+    }, 0);
+  }
+
+  function buildOpsAlerts() {
+    const list = [];
+    const rules = DB.alertRules || {};
+    const minStock = rules.minPurchaseStageAssets != null ? rules.minPurchaseStageAssets : 2;
+    const inv = DB.inventory || [];
+
+    const purchaseCount = inv.filter((a) => getAssetLifecycle(a) === "purchase").length;
+    if (purchaseCount < minStock) {
+      list.push({
+        id: "ops-low-stock",
+        type: "warning",
+        source: "IT Inventory",
+        title: "Low stock (storeroom)",
+        sub: `Only ${purchaseCount} asset(s) in Purchase stage. Minimum buffer is ${minStock}. Restock or receive hardware before new hires.`,
+        href: "inventory.html",
+        time: "Live",
+      });
+    }
+
+    const cap = Number(DB.expenseMonthlyBudget) || 0;
+    const spent = sumExpensesThisMonth();
+    if (cap > 0 && spent > cap) {
+      list.push({
+        id: "ops-budget-exceeded",
+        type: "critical",
+        source: "Budget",
+        title: "Monthly budget exceeded",
+        sub: `${moneyFmt(spent)} spent this month vs ${moneyFmt(cap)} cap (${moneyFmt(spent - cap)} over).`,
+        href: "budget.html",
+        time: "Live",
+      });
+    }
+
+    const needAssignee = inv.filter((a) => {
+      const lc = getAssetLifecycle(a);
+      if (a.assignedUserId != null) return false;
+      if (lc === "purchase" || lc === "retirement") return false;
+      return true;
+    });
+    if (needAssignee.length > 0) {
+      const names = needAssignee.map((a) => a.name).slice(0, 5);
+      const extra = needAssignee.length > 5 ? ` and ${needAssignee.length - 5} more` : "";
+      list.push({
+        id: "ops-assets-unassigned",
+        type: "warning",
+        source: "IT Inventory",
+        title: "Assets not assigned",
+        sub: `${needAssignee.length} active asset(s) have no owner (Assignment / Maintenance): ${names.join(", ")}${extra}.`,
+        href: "inventory.html",
+        time: "Live",
+      });
+    }
+
+    return list;
+  }
+
+  const monitoringAlerts = [
+    { id: "mon-0", type: "critical", title: "CPU Temperature Critical", device: "SRV-WIN-01", department: "IT", time: "2 min ago" },
+    { id: "mon-1", type: "critical", title: "VPN Tunnel Down", device: "SRV-WIN-02", department: "IT", time: "18 min ago" },
+    { id: "mon-2", type: "warning", title: "Disk Space Low (85%)", device: "PC-MKT-07", department: "Marketing & Commercial", time: "34 min ago" },
+    { id: "mon-3", type: "critical", title: "Network Switch Unresponsive", device: "SNMP-SW-01", department: "Facilities Management", time: "1h ago" },
+    { id: "mon-4", type: "warning", title: "Fan Speed Anomaly Detected", device: "MAC-LW-03", department: "Finance & Comptabilité", time: "1h 22m ago" },
+    { id: "mon-5", type: "warning", title: "Antivirus Definitions Outdated", device: "PC-HR-04", department: "Secretariat", time: "2h ago" },
+    { id: "mon-6", type: "info", title: "New Device Connected", device: "MAC-JD-01", department: "Direction", time: "3h ago" },
+    { id: "mon-7", type: "warning", title: "Windows Update Pending Reboot", device: "PC-MKT-07", department: "Marketing & Commercial", time: "5h ago" },
+    { id: "mon-8", type: "info", title: "Agent Version Updated", device: "LNX-SRV-01", department: "Laboratoire", time: "7h ago" },
+  ];
+
+  const bellSvg = '<svg viewBox="0 0 24 24"><path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9M13.73 21a2 2 0 01-3.46 0"/></svg>';
+  const packageSvg = '<svg viewBox="0 0 24 24"><path d="M21 16V8a2 2 0 00-1-1.73l-7-4a2 2 0 00-2 0l-7 4A2 2 0 003 8v8a2 2 0 001 1.73l7 4a2 2 0 002 0l7-4A2 2 0 0021 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/></svg>';
+
+  function render() {
+    const acked = getAckedSet();
+    const ops = buildOpsAlerts();
+    const monitoringScoped = activeDepartment
+      ? monitoringAlerts.filter((a) => a.department === activeDepartment)
+      : monitoringAlerts;
+    const all = [
+      ...ops.map((a) => ({ ...a, kind: "ops" })),
+      ...monitoringScoped.map((a) => ({ ...a, kind: "mon" })),
+    ];
+
+    let cCrit = 0,
+      cWarn = 0,
+      cInfo = 0,
+      cAck = 0;
+    all.forEach((a) => {
+      if (acked.has(a.id)) {
+        cAck++;
+        return;
+      }
+      if (a.type === "critical") cCrit++;
+      else if (a.type === "warning") cWarn++;
+      else cInfo++;
+    });
+
+    document.getElementById("kpi-crit").textContent = String(cCrit);
+    document.getElementById("kpi-warn").textContent = String(cWarn);
+    document.getElementById("kpi-info").textContent = String(cInfo);
+    document.getElementById("kpi-ack").textContent = String(cAck);
+
+    function rowHtml(a) {
+      const isAck = acked.has(a.id);
+      const sub =
+        a.kind === "ops"
+          ? `${escapeHtml(a.source)} · ${escapeHtml(a.sub)}`
+          : `${escapeHtml(a.device)} · ${escapeHtml(a.department)}`;
+      const link =
+        a.href ? `<a class="alert-link" href="${escapeHtml(a.href)}">Open ${a.href.includes("budget") ? "Budget" : "Inventory"} →</a>` : "";
+      const icon = a.kind === "ops" ? packageSvg : bellSvg;
+      return `
+  <div class="alert-row ${isAck ? "acked" : ""}" data-id="${escapeHtml(a.id)}">
+    <div class="alert-icon-box ${a.type}">${icon}</div>
+    <div class="alert-body">
+      <div class="alert-title">${escapeHtml(a.title)}</div>
+      <div class="alert-sub">${sub}</div>
+      ${link}
+    </div>
+    <span class="alert-time">${escapeHtml(a.time)}</span>
+    <button type="button" class="ack-btn ${isAck ? "acked" : ""}" data-aid="${escapeHtml(a.id)}" ${isAck ? "disabled" : ""}>${isAck ? "Acquittée ✓" : "Acquitter"}</button>
+  </div>`;
+    }
+
+    const opsRows = ops.map((a) => rowHtml({ ...a, kind: "ops" })).join("");
+    const monRows = monitoringScoped.map((a) => rowHtml({ ...a, kind: "mon" })).join("");
+
+    const deptBanner = activeDepartment
+      ? `<div style="margin-bottom:12px;padding:10px 12px;border:1px solid var(--border);border-radius:10px;background:var(--surface2);font-size:12px">
+          Vue filtrée sur le département: <strong>${escapeHtml(activeDepartment)}</strong>
+        </div>`
+      : "";
+
+    document.getElementById("alerts-list").innerHTML = `
+      ${deptBanner}
+      <h2 class="alert-section-title">Inventory &amp; budget</h2>
+      ${ops.length ? opsRows : '<p style="font-size:13px;color:var(--text-muted);margin-bottom:16px">No operations alerts — thresholds are clear.</p>'}
+      <h2 class="alert-section-title">Infrastructure monitoring</h2>
+      ${monRows || '<p style="font-size:13px;color:var(--text-muted);margin-bottom:16px">Aucune alerte active pour ce département.</p>'}
+    `;
+
+    document.querySelectorAll(".ack-btn[data-aid]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        if (btn.disabled) return;
+        const id = btn.getAttribute("data-aid");
+        const s = getAckedSet();
+        s.add(id);
+        saveAcked(s);
+        render();
+      });
+    });
+  }
+
+  function escapeHtml(s) {
+    return String(s)
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;");
+  }
+
+  const html = document.documentElement;
+  if (localStorage.getItem("theme")) html.dataset.theme = localStorage.getItem("theme");
+  document.getElementById("theme-toggle")?.addEventListener("click", () => {
+    const d = html.dataset.theme === "dark";
+    html.dataset.theme = d ? "" : "dark";
+    localStorage.setItem("theme", d ? "" : "dark");
+  });
+
+  if (bulkAck && activeDepartment) {
+    const s = getAckedSet();
+    monitoringAlerts
+      .filter((a) => a.department === activeDepartment)
+      .forEach((a) => s.add(a.id));
+    saveAcked(s);
+  }
+
+  render();
+  void hydrateFromApi().then(() => {
+    render();
+  });
+  if (typeof Auth !== "undefined" && Auth.enhanceUI) Auth.enhanceUI();
+})();
+</script>
+</body>
+</html>
+
+
+
+
+
+
+

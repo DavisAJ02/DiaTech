@@ -1,0 +1,432 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title data-i18n="index.meta.title">DiaTech – Plateforme de gestion TI</title>
+  <link rel="stylesheet" href="styles.css" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,600&display=swap" rel="stylesheet" />
+</head>
+<body class="page-dashboard">
+<script src="data.js"></script>
+<script src="i18n.js"></script>
+<script src="auth.js"></script>
+<script>Auth.guard();</script>
+
+<!-- SIDEBAR -->
+<aside class="sidebar" id="sidebar">
+  <div class="sidebar-logo">
+    <div class="brand">
+      <div class="brand-logo">
+        <img src="assets/sidebar-logo.png" alt="DiaTech logo" decoding="async" />
+      </div>
+      <div class="brand-text">DiaTech</div>
+    </div>
+  </div>
+  <nav class="sidebar-nav">
+    <a href="index.html" class="nav-item active" title="Dashboard">
+      <svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg>
+      <span data-i18n="common.nav.dashboard">Dashboard</span>
+    </a>
+    <a href="tickets.html" class="nav-item" title="Tickets">
+      <svg viewBox="0 0 24 24"><path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/></svg>
+      <span data-i18n="common.nav.tickets">Tickets</span>
+    </a>
+    <a href="departments.html" class="nav-item" title="Départements">
+      <svg viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75"/></svg>
+      <span data-i18n="common.nav.departments">Départements</span>
+    </a>
+    <a href="devices.html" class="nav-item" title="Devices">
+      <svg viewBox="0 0 24 24"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg>
+      <span data-i18n="common.nav.devices">Devices</span>
+    </a>
+    <a href="inventory.html" class="nav-item" title="Inventory">
+      <svg viewBox="0 0 24 24"><path d="M21 16V8a2 2 0 00-1-1.73l-7-4a2 2 0 00-2 0l-7 4A2 2 0 003 8v8a2 2 0 001 1.73l7 4a2 2 0 002 0l7-4A2 2 0 0021 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg>
+      <span data-i18n="common.nav.inventory">Inventory</span>
+    </a>
+    <a href="budget.html" class="nav-item" title="Budget">
+      <svg viewBox="0 0 24 24"><rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/></svg>
+      <span data-i18n="common.nav.budget">Budget</span>
+    </a>
+    <a href="alerts.html" class="nav-item" title="Alerts">
+      <svg viewBox="0 0 24 24"><path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9M13.73 21a2 2 0 01-3.46 0"/></svg>
+      <span data-i18n="common.nav.alerts">Alerts</span>
+    </a>
+    <a href="reports.html" class="nav-item" title="Reports">
+      <svg viewBox="0 0 24 24"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
+      <span data-i18n="common.nav.reports">Reports</span>
+    </a>
+    <a href="it-analytics.html" class="nav-item" title="IT Analytics">
+      <svg viewBox="0 0 24 24"><path d="M3 3v18h18"/><path d="M7 16V8"/><path d="M12 16v-5"/><path d="M17 16v-9"/></svg>
+      <span data-i18n="common.nav.analytics">Analytics</span>
+    </a>
+  </nav>
+  <div class="sidebar-footer sidebar-footer--auth">
+    <div class="sidebar-avatar">··</div>
+    <button type="button" class="sidebar-logout auth-logout-btn" title="Déconnexion" data-i18n="common.logout">Déconnexion</button>
+  </div>
+</aside>
+<script src="sidebar-nav.js"></script>
+<script src="topbar-user-menu.js"></script>
+<script src="page-polish.js"></script>
+
+<!-- MAIN -->
+<main class="main-content">
+  <div class="app-content">
+
+  <!-- TOPBAR -->
+  <header class="topbar header">
+    <div class="topbar-left header-left">
+      <h1 class="page-title" data-i18n="index.page.title">Dashboard</h1>
+      <span class="topbar-date header-date" id="topbar-date"></span>
+    </div>
+    <div class="topbar-right header-right">
+      <div class="search-box search-bar">
+        <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+        <input type="text" data-i18n-placeholder="index.search.placeholder" placeholder="Search tickets, devices…" />
+      </div>
+      <button class="btn-primary" onclick="window.location='devices.html'">
+        <svg viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+        <span data-i18n="index.install.agent">Installer l'agent</span>
+      </button>
+      <button class="icon-btn" id="notif-btn">
+        <svg viewBox="0 0 24 24"><path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9M13.73 21a2 2 0 01-3.46 0"/></svg>
+        <span class="badge notification-badge" id="notif-badge">3</span>
+      </button></div>
+  </header>
+
+
+  <section class="dashboard-hero">
+    <div class="dashboard-hero-panel dashboard-hero-panel--lead">
+      <div class="dashboard-hero-kicker">DiaTech command center</div>
+      <h2 class="dashboard-hero-title">Keep service operations calm, visible, and ahead of risk.</h2>
+      <p class="dashboard-hero-copy">Monitor ticket pressure, asset health, and alert escalation from one flagship view designed for fast daily decision-making.</p>
+      <div class="dashboard-hero-actions">
+        <button class="btn-primary" onclick="window.location='tickets.html'">Review Priority Queue</button>
+        <button class="btn-secondary" onclick="window.location='reports.html'">Open Executive Report</button>
+      </div>
+    </div>
+    <div class="dashboard-hero-panel dashboard-hero-panel--signal">
+      <div class="hero-signal-grid">
+        <div class="hero-signal-card">
+          <span class="hero-signal-label">SLA pulse</span>
+          <strong class="hero-signal-value">90%</strong>
+          <span class="hero-signal-note">On target this month</span>
+        </div>
+        <div class="hero-signal-card">
+          <span class="hero-signal-label">Critical load</span>
+          <strong class="hero-signal-value">12</strong>
+          <span class="hero-signal-note">3 need action now</span>
+        </div>
+        <div class="hero-signal-card">
+          <span class="hero-signal-label">Active fleet</span>
+          <strong class="hero-signal-value">199</strong>
+          <span class="hero-signal-note">Devices reporting healthy</span>
+        </div>
+        <div class="hero-signal-card">
+          <span class="hero-signal-label">Daily focus</span>
+          <strong class="hero-signal-value">Backlog</strong>
+          <span class="hero-signal-note">Resolve overdue before noon</span>
+        </div>
+      </div>
+    </div>
+  </section>
+  <!-- KPI STRIP (Unified Tickets + Inventory) -->
+  <section class="kpi-grid">
+    <div class="kpi-card" data-color="blue">
+      <div class="kpi-label">Open Tickets</div>
+      <div class="kpi-value" id="kpi-open-tickets">0</div>
+      <div class="kpi-sub">Support requests in queue</div>
+    </div>
+    <div class="kpi-card" data-color="yellow">
+      <div class="kpi-label">Pending Tickets</div>
+      <div class="kpi-value" id="kpi-pending-tickets">0</div>
+      <div class="kpi-sub">Waiting for action</div>
+    </div>
+    <div class="kpi-card" data-color="red">
+      <div class="kpi-label">Overdue Tickets</div>
+      <div class="kpi-value" id="kpi-overdue-tickets">0</div>
+      <div class="kpi-sub">SLA breached</div>
+    </div>
+    <div class="kpi-card" data-color="green">
+      <div class="kpi-label">Devices Healthy</div>
+      <div class="kpi-value" id="kpi-devices-healthy">0</div>
+      <div class="kpi-sub">Inventory good condition</div>
+    </div>
+    <div class="kpi-card" data-color="red">
+      <div class="kpi-label">Critical Devices</div>
+      <div class="kpi-value" id="kpi-critical-devices">0</div>
+      <div class="kpi-sub">Require immediate attention</div>
+    </div>
+    <div class="kpi-card" data-color="yellow">
+      <div class="kpi-label">Replacement Soon</div>
+      <div class="kpi-value" id="kpi-replacement-soon">0</div>
+      <div class="kpi-sub">Planned replacement ahead</div>
+    </div>
+  </section>
+
+  <div class="dashboard-stack">
+
+    <!-- Insights + global range (full width, outside chart grids) -->
+    <div class="card card-fullwidth dashboard-insights-card">
+      <div class="analytics-toolbar">
+        <div>
+          <h2 class="insights-title">Analytics overview</h2>
+          <p class="insights-sub">Ticket pipeline, SLA, and volume — switch the window to compare periods.</p>
+        </div>
+        <div class="card-actions analytics-range-chips" role="group" aria-label="Date range">
+          <button type="button" class="chip active" data-analytics-range="7d">7 days</button>
+          <button type="button" class="chip" data-analytics-range="30d">30 days</button>
+          <button type="button" class="chip" data-analytics-range="90d">90 days</button>
+        </div>
+      </div>
+      <div class="analytics-grid" id="insights-panel"></div>
+    </div>
+
+    <!-- Primary analytics charts -->
+    <div class="dashboard-grid-cq">
+    <div class="dashboard-grid">
+
+    <!-- Ticket trend (line) -->
+    <div class="card card-wide chart-card chart-card--trend">
+      <div class="card-header">
+        <h2>Ticket trend</h2>
+        <span class="chart-hint">New & reopened · click a point to open tickets</span>
+      </div>
+      <div class="chart-canvas-wrap">
+        <canvas id="chartTicketTrend"></canvas>
+      </div>
+    </div>
+
+    <!-- SLA + Tickets by priority (side by side) -->
+    <div class="dashboard-chart-pair">
+    <div class="card sla-metric-card">
+      <div class="card-header">
+        <h2>SLA &amp; resolution</h2>
+        <span class="chart-hint">Click segments to filter</span>
+      </div>
+      <div class="sla-metric-inner">
+        <div class="chart-canvas-wrap chart-canvas-wrap--donut">
+          <canvas id="chartSlaCompliance"></canvas>
+        </div>
+        <div class="metric-hero" id="avg-resolution-block">
+          <div class="metric-label">Avg. resolution time</div>
+          <div class="metric-value" id="avg-resolution-value">—</div>
+          <div class="metric-unit">hours</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card chart-card">
+      <div class="card-header">
+        <h2>Tickets by priority</h2>
+        <span class="chart-hint">Click a bar to drill down</span>
+      </div>
+      <div class="chart-canvas-wrap">
+        <canvas id="chartPriority"></canvas>
+      </div>
+    </div>
+    </div><!-- /dashboard-chart-pair -->
+
+    <!-- Ticket volume (bar) -->
+    <div class="card card-wide chart-card">
+      <div class="card-header">
+        <h2>Ticket volume</h2>
+        <span class="chart-hint">Throughput by period</span>
+      </div>
+      <div class="chart-canvas-wrap">
+        <canvas id="chartTicketVolume"></canvas>
+      </div>
+    </div>
+
+    </div>
+    </div><!-- /dashboard-grid-cq -->
+
+    <!-- Alerts, OS (two columns); Critical full-width below -->
+    <div class="dashboard-grid-cq">
+    <div class="dashboard-grid" style="grid-template-columns: 1fr 1fr;">
+    <!-- Alerts Status -->
+    <div class="card" style="grid-column: span 1; align-self: start;">
+      <div class="card-header"><h2>Alerts Status</h2></div>
+      <div style="display:flex; align-items:center; gap:20px;">
+        <div style="display:flex; flex-direction:column; gap:10px; flex:1; min-width:0;">
+          <div class="alert-stat warning">
+            <span class="alert-label">Warning</span>
+            <span class="alert-num">187</span>
+          </div>
+          <div class="alert-stat critical">
+            <span class="alert-label">Critical</span>
+            <span class="alert-num">12</span>
+          </div>
+        </div>
+        <div style="display:flex; flex-direction:column; align-items:center; flex-shrink:0;">
+          <div style="position:relative; width:160px; height:160px; flex-shrink:0;">
+            <canvas id="alertDonut"></canvas>
+          </div>
+          <div style="font-size:12px; color:var(--text-muted); display:flex; gap:12px; margin-top:8px; justify-content:center;">
+            <span style="display:flex;align-items:center;gap:5px;"><span style="width:9px;height:9px;border-radius:50%;background:#d97706;display:inline-block;"></span>Warning</span>
+            <span style="display:flex;align-items:center;gap:5px;"><span style="width:9px;height:9px;border-radius:50%;background:#e94d67;display:inline-block;"></span>Critical</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- OS Platform -->
+    <div class="card" style="grid-column: span 1; align-self: start;">
+      <div class="card-header"><h2>OS Platform</h2></div>
+      <div class="os-layout">
+        <div class="os-chart-wrap">
+          <canvas id="osChart"></canvas>
+        </div>
+        <ul class="os-legend" id="os-legend" aria-label="OS platform breakdown">
+          <li><span class="dot" style="background:#e94d67"></span>Windows <strong>—</strong></li>
+          <li><span class="dot" style="background:#94a3b8"></span>Unknown <strong>—</strong></li>
+          <li><span class="dot" style="background:#4f6df5"></span>Mac <strong>—</strong></li>
+          <li><span class="dot" style="background:#0d9f6e"></span>Other <strong>—</strong></li>
+        </ul>
+      </div>
+      <div class="os-total">250 Devices total</div>
+    </div>
+
+    </div>
+    </div><!-- /dashboard-grid-cq -->
+
+    <!-- Critical & Overdue Tickets -->
+    <div class="card card-fullwidth" id="critical-tickets-card" style="margin-top: 0;">
+      <div class="card-header">
+        <h2>Critiques &amp; en retard</h2>
+        <a href="tickets.html" class="card-link">View all →</a>
+      </div>
+      <div class="table-responsive">
+      <table class="data-table">
+        <thead>
+          <tr><th>Ticket</th><th>Assignee</th><th>Priority</th><th>SLA</th></tr>
+        </thead>
+        <tbody id="critical-tickets-body">
+          <!-- Filled by JS -->
+        </tbody>
+      </table>
+      </div>
+    </div>
+
+    <!-- Availability, satisfaction, and downstream widgets -->
+    <div class="dashboard-grid-cq">
+    <div class="dashboard-grid">
+
+    <!-- Availability Monitoring -->
+    <div class="card">
+      <div class="card-header"><h2>Availability</h2></div>
+      <table class="avail-table">
+        <thead><tr><th>Device</th><th>Online</th><th>Offline</th></tr></thead>
+        <tbody>
+          <tr><td>Server</td><td><span class="dot-green">13</span></td><td><span class="dot-red">7</span></td></tr>
+          <tr><td>PC</td><td><span class="dot-green">—</span></td><td><span class="dot-red">—</span></td></tr>
+          <tr><td>Mac</td><td><span class="dot-green">181</span></td><td><span class="dot-red">9</span></td></tr>
+          <tr><td>Linux</td><td><span class="dot-green">3</span></td><td><span class="dot-red">—</span></td></tr>
+          <tr><td>SNMP</td><td><span class="dot-green">2</span></td><td><span class="dot-red">5</span></td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <!-- Satisfaction -->
+    <div class="card">
+      <div class="card-header"><h2>Satisfaction</h2></div>
+      <div class="stars">★★★★★</div>
+      <div class="satisfaction-rows">
+        <div class="sat-row"><span>Quality of support</span><div class="sat-bar"><div class="sat-fill" style="width:100%"></div></div><span>5</span></div>
+        <div class="sat-row"><span>Technician knowledge</span><div class="sat-bar"><div class="sat-fill" style="width:100%"></div></div><span>5</span></div>
+        <div class="sat-row"><span>Overall helpfulness</span><div class="sat-bar"><div class="sat-fill" style="width:100%"></div></div><span>5</span></div>
+      </div>
+    </div>
+
+    <!-- Status by Alert Category -->
+    <div class="card chart-card">
+      <div class="card-header"><h2>Alert Categories</h2><span class="chart-hint">Click bars to open tickets</span></div>
+      <div class="chart-canvas-wrap">
+        <canvas id="alertCatChart"></canvas>
+      </div>
+    </div>
+
+    <!-- Alerts per Département -->
+    <div class="card">
+      <div class="card-header"><h2>Alertes par département</h2></div>
+      <div class="department-alerts" id="department-alerts-list">
+        <!-- Filled by JS -->
+      </div>
+    </div>
+
+    <!-- Department Tickets -->
+    <div class="card">
+      <div class="card-header">
+        <h2>Tickets par département</h2>
+        <a href="tickets.html" class="card-link">Manage →</a>
+      </div>
+      <div class="department-tickets" id="department-tickets-list">
+        <!-- Filled by JS -->
+      </div>
+    </div>
+
+    <!-- Unassigned Tickets (full-width) -->
+    <div class="card card-fullwidth">
+      <div class="card-header">
+        <h2>Unassigned Tickets</h2>
+        <button class="btn-secondary" onclick="window.location='tickets.html'">Assigner tout</button>
+      </div>
+      <div class="table-responsive">
+      <table class="data-table">
+        <thead>
+          <tr><th>ID</th><th>Details</th><th>Priority</th><th>SLA</th><th>Action</th></tr>
+        </thead>
+        <tbody id="unassigned-body">
+          <!-- Filled by JS -->
+        </tbody>
+      </table>
+      </div>
+    </div>
+
+    </div>
+    </div><!-- /dashboard-grid-cq -->
+
+  </div><!-- /dashboard-stack -->
+  </div>
+</main>
+
+<div id="notif-panel" class="notif-panel">
+  <div class="notif-panel-header">
+    <span>Notifications</span>
+    <button type="button" id="notif-clear">Mark all read</button>
+  </div>
+  <div class="notif-list" id="notif-list"></div>
+</div>
+<div id="notif-backdrop" class="notif-backdrop" aria-hidden="true"></div>
+
+<div id="cmd-palette" class="cmd-palette" role="dialog" aria-modal="true" aria-label="Command palette">
+  <div class="cmd-box">
+    <div class="cmd-search-row">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+      <input id="cmd-input" type="text" placeholder="Search tickets, devices, departments…" autocomplete="off" />
+      <kbd>ESC</kbd>
+    </div>
+    <div class="cmd-results" id="cmd-results"></div>
+    <div class="cmd-footer">
+      <span><kbd>↑↓</kbd> navigate</span>
+      <span><kbd>↵</kbd> open</span>
+      <span><kbd>ESC</kbd> close</span>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.2/dist/chart.umd.min.js"></script>
+<script src="dashboard.js"></script>
+<script>Auth.enhanceUI();</script>
+</body>
+</html>
+
+
+
+
+
+
+
