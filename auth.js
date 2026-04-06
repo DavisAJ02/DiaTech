@@ -1,7 +1,7 @@
 // ============================
-// DiaTech – Client auth (demo + Supabase optionnel)
+// DiaTech – Client auth (Supabase)
 // ============================
-// Session demo : localStorage. Si env-public.js configure Supabase, Auth utilise JWT + table public.profiles (role).
+// Connexion via Supabase Auth + public.profiles (rôle). Pas de comptes locaux / démo.
 (function (global) {
   const STORAGE_KEY = 'nexusops_session_v1';
 
@@ -12,10 +12,6 @@
     } catch {
       return null;
     }
-  }
-
-  function writeStored(userId) {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify({ userId, savedAt: Date.now() }));
   }
 
   function clearStored() {
@@ -47,23 +43,12 @@
     return true;
   }
 
-  function login(username, password) {
-    const u = DB.users.find(
-      (x) =>
-        x.active &&
-        String(x.username).toLowerCase() === String(username).trim().toLowerCase()
-    );
-    if (!u) return { ok: false, error: 'Invalid username or password' };
-    if (u.passwordDemo !== password)
-      return { ok: false, error: 'Invalid username or password' };
-    if (typeof setSessionUser === 'function') setSessionUser(u.id);
-    writeStored(u.id);
-    if (isSupabaseConfiguredSync()) {
-      import('./supabase-session.mjs')
-        .then((m) => m.signOutSupabase())
-        .catch(() => {});
-    }
-    return { ok: true, user: u };
+  function login(_username, _password) {
+    return {
+      ok: false,
+      error:
+        'La connexion par compte local est désactivée. Utilisez votre adresse e-mail CMD et le mot de passe Supabase.',
+    };
   }
 
   async function logout() {
@@ -126,10 +111,6 @@
       } finally {
         document.documentElement.classList.remove('auth-booting');
       }
-    }
-
-    if (!authed) {
-      authed = restoreSession() && !!currentUser();
     }
 
     if (path === 'login.html') {

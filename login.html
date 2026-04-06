@@ -442,73 +442,6 @@
       box-shadow: var(--shadow-sm);
     }
 
-    .login-divider {
-      display: flex;
-      align-items: center;
-      gap: 14px;
-      margin: 32px 0;
-    }
-
-    .login-divider::before,
-    .login-divider::after {
-      content: '';
-      flex: 1;
-      height: 1px;
-      background: linear-gradient(
-        90deg,
-        transparent,
-        color-mix(in srgb, var(--color-primary) 14%, transparent),
-        transparent
-      );
-    }
-
-    .login-divider span {
-      font-size: 12px;
-      font-weight: 500;
-      line-height: 1.4;
-      color: var(--color-text-muted);
-      text-transform: uppercase;
-      letter-spacing: 0.06em;
-      white-space: nowrap;
-    }
-
-    .login-hint {
-      background: linear-gradient(
-        145deg,
-        color-mix(in srgb, var(--color-bg) 85%, var(--color-primary-light)) 0%,
-        var(--color-card) 100%
-      );
-      border: 1px solid color-mix(in srgb, var(--color-primary) 12%, var(--color-border));
-      border-radius: var(--radius-lg);
-      padding: var(--space-md) 18px;
-      font-size: var(--text-sm);
-      font-weight: 400;
-      line-height: 1.55;
-      color: var(--color-text-muted);
-      box-shadow: var(--shadow-sm);
-    }
-
-    .login-hint strong {
-      display: block;
-      color: var(--color-text);
-      font-weight: 600;
-      line-height: 1.4;
-      margin-bottom: 6px;
-      font-size: var(--text-sm);
-      letter-spacing: -0.01em;
-    }
-
-    .login-hint code {
-      font-size: 12px;
-      line-height: 1.45;
-      background: var(--primary-muted);
-      padding: 3px var(--space-sm);
-      border-radius: var(--radius-sm);
-      color: var(--color-primary);
-      font-family: ui-monospace, 'Cascadia Code', 'Segoe UI Mono', monospace;
-      font-weight: 500;
-    }
-
     /* ── RESPONSIVE ── */
     @media (min-width: 1600px) {
       .login-left {
@@ -731,7 +664,7 @@
       <form id="login-form" novalidate>
 
         <div class="login-field">
-          <label for="login-user">Nom d'utilisateur</label>
+          <label for="login-user">E-mail ou identifiant CMD</label>
           <div class="login-input-wrap">
             <svg class="login-input-icon" viewBox="0 0 24 24">
               <path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/>
@@ -743,7 +676,7 @@
               type="text"
               autocomplete="username"
               required
-              placeholder="ex. david-adrien.ntumba"
+              placeholder="prenom.nom ou prenom.nom@cmd.local"
             />
           </div>
         </div>
@@ -774,14 +707,6 @@
 
       </form>
 
-      <div class="login-divider"><span>Comptes de démonstration</span></div>
-
-      <div class="login-hint">
-        <strong>Accès de test</strong>
-        Administrateur : <code>david-adrien.ntumba</code> / <code>admin123</code><br/>
-        Agent TI : <code>papy.matala</code> / <code>agent123</code>
-      </div>
-
     </div>
   </div>
 
@@ -802,36 +727,29 @@
       err.textContent = '';
       const username = document.getElementById('login-user').value.trim();
       const password = document.getElementById('login-pass').value;
-      if (typeof Auth !== 'undefined' && Auth.isSupabaseConfigured && Auth.isSupabaseConfigured()) {
-        try {
-          const mod = await import('./supabase-session.mjs');
-          const email = username.includes('@') ? username : username + '@cmd.local';
-          const sup = await mod.signInWithSupabase(email, password);
-          if (sup.ok) {
-            const q = new URLSearchParams(window.location.search);
-            const ret = q.get('return');
-            const path =
-              ret && /^[a-z0-9._-]+\.html$/i.test(ret) && ret.toLowerCase() !== 'login.html'
-                ? ret
-                : 'index.html';
-            window.location.replace(path);
-            return;
-          }
-          err.textContent = sup.error || 'Connexion refusée';
-          return;
-        } catch (ex) {
-          err.textContent = String(ex && ex.message ? ex.message : ex);
+      if (!(typeof Auth !== 'undefined' && Auth.isSupabaseConfigured && Auth.isSupabaseConfigured())) {
+        err.textContent =
+          'La configuration Supabase (clé publique) est requise pour la connexion. Vérifiez env-public.js ou les variables du déploiement.';
+        return;
+      }
+      try {
+        const mod = await import('./supabase-session.mjs');
+        const email = username.includes('@') ? username : username + '@cmd.local';
+        const sup = await mod.signInWithSupabase(email, password);
+        if (sup.ok) {
+          const q = new URLSearchParams(window.location.search);
+          const ret = q.get('return');
+          const path =
+            ret && /^[a-z0-9._-]+\.html$/i.test(ret) && ret.toLowerCase() !== 'login.html'
+              ? ret
+              : 'index.html';
+          window.location.replace(path);
           return;
         }
+        err.textContent = sup.error || 'Connexion refusée';
+      } catch (ex) {
+        err.textContent = String(ex && ex.message ? ex.message : ex);
       }
-      const res = Auth.login(username, password);
-      if (!res.ok) { err.textContent = res.error; return; }
-      const q = new URLSearchParams(window.location.search);
-      const ret = q.get('return');
-      const path =
-        ret && /^[a-z0-9._-]+\.html$/i.test(ret) && ret.toLowerCase() !== 'login.html'
-          ? ret : 'index.html';
-      window.location.replace(path);
     });
   </script>
 

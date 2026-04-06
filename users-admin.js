@@ -97,8 +97,6 @@
     document.getElementById("ue-username").value = u.username;
     document.getElementById("ue-email").value = u.email || "";
     document.getElementById("ue-name").value = u.name;
-    document.getElementById("ue-password").value = "";
-    document.getElementById("ue-password").placeholder = u.managed ? "New password (optional)" : "Leave blank to keep";
     document.getElementById("ue-active").checked = !!u.active;
     const isAdmin = u.roles && u.roles.includes("admin");
     document.getElementById("ue-role-admin").checked = isAdmin;
@@ -169,7 +167,6 @@
     const username = document.getElementById("ue-username").value.trim().toLowerCase();
     const email = document.getElementById("ue-email").value.trim();
     const name = document.getElementById("ue-name").value.trim();
-    const password = document.getElementById("ue-password").value;
     const active = document.getElementById("ue-active").checked;
     const wantAdmin = document.getElementById("ue-role-admin").checked;
 
@@ -220,10 +217,6 @@
       patch.allowedPages = readPagesFromForm(false);
     }
 
-    if (password) {
-      patch.passwordDemo = password;
-    }
-
     if (typeof saveUserPatch === "function") saveUserPatch(patch);
     closeModal();
     renderTable();
@@ -237,8 +230,6 @@
     document.getElementById("ue-username").value = "";
     document.getElementById("ue-email").value = "";
     document.getElementById("ue-name").value = "";
-    document.getElementById("ue-password").value = "";
-    document.getElementById("ue-password").placeholder = "Initial password";
     document.getElementById("ue-active").checked = true;
     document.getElementById("ue-role-admin").checked = false;
     document.getElementById("ue-role-admin").disabled = false;
@@ -261,10 +252,8 @@
     const username = document.getElementById("ue-username").value.trim().toLowerCase();
     const email = document.getElementById("ue-email").value.trim();
     const name = document.getElementById("ue-name").value.trim();
-    const password = document.getElementById("ue-password").value;
-
-    if (!username || !name || !password) {
-      err.textContent = "Username, display name, and initial password are required.";
+    if (!username || !name) {
+      err.textContent = "Username and display name are required.";
       return;
     }
     if (DB.users.some((x) => x.username.toLowerCase() === username)) {
@@ -293,7 +282,6 @@
       roles,
       active: true,
       authProvider: null,
-      passwordDemo: password,
       managed: true,
       restrictions,
       allowedPages: isAdmin ? null : readPagesFromForm(false),

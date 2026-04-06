@@ -21,8 +21,6 @@
       "login.username.placeholder": "ex. david-adrien.ntumba",
       "login.password.placeholder": "••••••••",
       "login.submit": "Se connecter ->",
-      "login.demo.title": "Comptes de demonstration",
-      "login.demo.access": "Acces de test",
 
       "index.meta.title": "DiaTech - Plateforme de gestion TI",
       "index.page.title": "Tableau de bord",
@@ -144,8 +142,6 @@
       "login.username.placeholder": "e.g. david-adrien.ntumba",
       "login.password.placeholder": "••••••••",
       "login.submit": "Sign in ->",
-      "login.demo.title": "Demo accounts",
-      "login.demo.access": "Test access",
 
       "index.meta.title": "DiaTech - IT management platform",
       "index.page.title": "Dashboard",

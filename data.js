@@ -266,8 +266,6 @@ const DB = {
       roles: ["agent"],
       active: true,
       authProvider: null,
-      /** Demo only — remove; validate with your API */
-      passwordDemo: "agent123",
     },
     {
       id: 2,
@@ -279,7 +277,6 @@ const DB = {
       roles: ["agent"],
       active: true,
       authProvider: null,
-      passwordDemo: "agent123",
     },
     {
       id: 3,
@@ -291,7 +288,6 @@ const DB = {
       roles: ["agent", "admin"],
       active: true,
       authProvider: null,
-      passwordDemo: "admin123",
     },
     {
       id: 4,
@@ -303,7 +299,6 @@ const DB = {
       roles: ["agent"],
       active: true,
       authProvider: null,
-      passwordDemo: "agent123",
     },
   ],
 
@@ -319,7 +314,7 @@ const DB = {
   session: {
     currentUserId: null,
     isAuthenticated: false,
-    /** 'demo' | 'supabase' — rempli après login */
+    /** 'supabase' quand connecté via Supabase Auth */
     authProvider: null,
     /** Rôle issu de public.profiles (admin | agent | user) */
     profileRole: null,
@@ -720,7 +715,7 @@ function getAssignableUsers() {
     .sort((a, b) => a.id - b.id);
 }
 
-/** In-memory session; persist with Auth.login / localStorage via auth.js */
+/** In-memory session; rempli par Supabase (supabase-session.mjs) et auth.js à la déconnexion */
 function profileRoleToAppRoles(profileRole) {
   const r = String(profileRole || "user").toLowerCase();
   if (r === "admin") return ["admin", "agent"];
