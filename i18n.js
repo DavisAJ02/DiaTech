@@ -41,6 +41,40 @@
       "index.kpi.csat.label": "Score CSAT",
       "index.kpi.csat.sub": "★★★★★ Excellent",
 
+      "index.hero.lead.kicker": "Centre de commande DiaTech",
+      "index.hero.lead.title": "Des opérations de service calmes, lisibles et toujours en avance sur le risque.",
+      "index.hero.lead.copy": "Pilotez en un seul écran la charge des tickets, la santé des actifs et l'escalade des alertes — une vue opérationnelle conçue pour décider vite, chaque jour.",
+      "index.hero.cta.queue": "Traiter les priorités",
+      "index.hero.cta.report": "Rapport de direction",
+      "index.hero.sla.label": "Pouls SLA",
+      "index.hero.critical.label": "Charge critique",
+      "index.hero.fleet.label": "Parc actif",
+      "index.hero.focus.label": "Priorité du jour",
+      "index.hero.loading": "Chargement…",
+      "index.hero.sla.note.on_target_month": "Dans les temps ce mois-ci",
+      "index.hero.sla.note.breach_one": "{bad} cloture hors delai SLA · {total} fermee ce mois-ci",
+      "index.hero.sla.note.breach_many": "{bad} clotures hors delai SLA · {total} fermees ce mois-ci",
+      "index.hero.sla.note.no_open": "Aucun ticket ouvert",
+      "index.hero.sla.note.queue_ok": "File actuelle dans les delais SLA",
+      "index.hero.sla.note.over_one": "{n} ticket actif hors delai SLA",
+      "index.hero.sla.note.over_many": "{n} tickets actifs hors delai SLA",
+      "index.hero.critical.need_now": "{n} a traiter maintenant",
+      "index.hero.critical.all_moving": "Critiques / hauts : pris en charge",
+      "index.hero.critical.none": "Aucun critique / haut en file",
+      "index.hero.fleet.breakdown": "{inv} inventaire · {online} parc en ligne",
+      "index.hero.fleet.empty": "Ajoutez inventaire ou appareils pour suivre la sante",
+      "index.hero.focus.title.backlog": "Arriere",
+      "index.hero.focus.title.critical_queue": "File critique",
+      "index.hero.focus.title.assignments": "Affectations",
+      "index.hero.focus.title.queue": "File",
+      "index.hero.focus.title.steady": "Stable",
+      "index.hero.focus.note.backlog": "{n} en retard SLA · traiter les depassements en premier",
+      "index.hero.focus.note.critical": "{n} critiques / hauts a traiter maintenant",
+      "index.hero.focus.note.unassigned": "{n} non assignes · prendre en charge",
+      "index.hero.focus.note.open_one": "{n} ticket ouvert · garder le flux",
+      "index.hero.focus.note.open_many": "{n} tickets ouverts · garder le flux",
+      "index.hero.focus.note.steady": "Pas de signal SLA ou affectation urgent",
+
       "settings.meta.title": "DiaTech - Parametres",
       "settings.page.title": "Parametres",
       "settings.nav.profile": "Profil",
@@ -129,6 +163,40 @@
       "index.kpi.critical.sub": "3 unacknowledged",
       "index.kpi.csat.label": "CSAT score",
       "index.kpi.csat.sub": "★★★★★ Excellent",
+
+      "index.hero.lead.kicker": "DiaTech command center",
+      "index.hero.lead.title": "Keep service operations calm, visible, and ahead of risk.",
+      "index.hero.lead.copy": "Monitor ticket pressure, asset health, and alert escalation from one flagship view designed for fast daily decision-making.",
+      "index.hero.cta.queue": "Review priority queue",
+      "index.hero.cta.report": "Open executive report",
+      "index.hero.sla.label": "SLA pulse",
+      "index.hero.critical.label": "Critical load",
+      "index.hero.fleet.label": "Active fleet",
+      "index.hero.focus.label": "Daily focus",
+      "index.hero.loading": "Loading…",
+      "index.hero.sla.note.on_target_month": "On target this month",
+      "index.hero.sla.note.breach_one": "{bad} closure past SLA · {total} closed MTD",
+      "index.hero.sla.note.breach_many": "{bad} closures past SLA · {total} closed MTD",
+      "index.hero.sla.note.no_open": "No open tickets",
+      "index.hero.sla.note.queue_ok": "Queue within SLA right now",
+      "index.hero.sla.note.over_one": "{n} active ticket over SLA",
+      "index.hero.sla.note.over_many": "{n} active tickets over SLA",
+      "index.hero.critical.need_now": "{n} need action now",
+      "index.hero.critical.all_moving": "All critical/high owned & in motion",
+      "index.hero.critical.none": "No critical/high in queue",
+      "index.hero.fleet.breakdown": "{inv} inventory · {online} fleet online",
+      "index.hero.fleet.empty": "Add inventory or fleet devices to track health",
+      "index.hero.focus.title.backlog": "Backlog",
+      "index.hero.focus.title.critical_queue": "Critical queue",
+      "index.hero.focus.title.assignments": "Assignments",
+      "index.hero.focus.title.queue": "Queue",
+      "index.hero.focus.title.steady": "Steady",
+      "index.hero.focus.note.backlog": "{n} overdue SLA · resolve breaches first",
+      "index.hero.focus.note.critical": "{n} critical/high need action now",
+      "index.hero.focus.note.unassigned": "{n} unassigned · pick up ownership",
+      "index.hero.focus.note.open_one": "{n} open ticket · keep flow moving",
+      "index.hero.focus.note.open_many": "{n} open tickets · keep flow moving",
+      "index.hero.focus.note.steady": "No urgent SLA or assignment flags",
 
       "settings.meta.title": "DiaTech - Settings",
       "settings.page.title": "Settings",
@@ -323,6 +391,20 @@
     return fallback != null ? fallback : key;
   }
 
+  function format(template, vars) {
+    var s = String(template || "");
+    if (!vars || typeof vars !== "object") return s;
+    Object.keys(vars).forEach(function (k) {
+      s = s.split("{" + k + "}").join(String(vars[k]));
+    });
+    return s;
+  }
+
+  /** Translate key then replace {placeholders} from vars. */
+  function tf(key, vars, fallback) {
+    return format(t(key, fallback != null ? fallback : key), vars);
+  }
+
   function normalizeSpaces(input) {
     return String(input || "").replace(/\s+/g, " ").trim();
   }
@@ -468,6 +550,8 @@
     setLanguage: setLanguage,
     applyTranslations: applyTranslations,
     t: t,
+    format: format,
+    tf: tf,
     languages: Object.keys(messages),
   };
 

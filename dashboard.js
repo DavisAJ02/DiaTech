@@ -37,6 +37,18 @@ function getSafeTickets() {
   return Array.isArray(DB?.tickets) ? DB.tickets : [];
 }
 
+/** i18n string with {placeholders}; falls back to English template if I18n missing. */
+function dashTf(key, vars, enFallback) {
+  if (typeof I18n !== 'undefined' && I18n.tf) return I18n.tf(key, vars || {}, enFallback);
+  let s = enFallback != null ? String(enFallback) : String(key);
+  if (vars && s) {
+    Object.keys(vars).forEach((k) => {
+      s = s.split(`{${k}}`).join(String(vars[k]));
+    });
+  }
+  return s;
+}
+
 const DASHBOARD_API_BASE = (() => {
   const fromWindow = typeof window !== 'undefined' ? String(window.__API_BASE__ || '').trim() : '';
   const fromStorage = typeof localStorage !== 'undefined' ? String(localStorage.getItem('ti_api_base') || '').trim() : '';
@@ -237,13 +249,18 @@ function ticketCreatedMs(t) {
   return Number.isNaN(d.getTime()) ? null : d.getTime();
 }
 
+function isTicketResolvedDash(t) {
+  const s = String(t?.status || '').toLowerCase();
+  return s === 'resolved' || s === 'resolue' || s === 'résolue' || s === 'closed' || s === 'ferme' || s === 'fermé';
+}
+
 function ticketSlaClassLive(t) {
   const fallback = String(t?.slaClass || 'ok').toLowerCase();
   const createdAt = t?.createdAt || null;
   if (!createdAt) return fallback === 'breach' ? 'breach' : 'ok';
   const targetHours =
     typeof getSlaTargetHoursForDate === 'function' ? Number(getSlaTargetHoursForDate(createdAt)) || 4 : 4;
-  const isResolved = String(t?.status || '').toLowerCase() === 'resolved';
+  const isResolved = isTicketResolvedDash(t);
   const endAt = isResolved ? (t?.resolvedAt ? new Date(t.resolvedAt) : new Date()) : new Date();
   const start = new Date(createdAt);
   if (Number.isNaN(start.getTime()) || Number.isNaN(endAt.getTime())) return fallback === 'breach' ? 'breach' : 'ok';
@@ -252,6 +269,196 @@ function ticketSlaClassLive(t) {
   if (delta < 0) return 'breach';
   if (delta <= Math.max(1, targetHours * 0.25)) return 'warn';
   return 'ok';
+}
+
+function ticketResolvedInCurrentMonth(t) {
+  if (!isTicketResolvedDash(t)) return false;
+  const r = t?.resolvedAt ? new Date(t.resolvedAt) : null;
+  if (!r || Number.isNaN(r.getTime())) return false;
+  const now = new Date();
+  return r.getFullYear() === now.getFullYear() && r.getMonth() === now.getMonth();
+}
+
+/** % of month-to-date closures that were not in SLA breach at resolution (warn counts as on track). */
+function computeHeroSlaPulse(tickets) {
+  const list = Array.isArray(tickets) ? tickets : [];
+  const closedMonth = list.filter(ticketResolvedInCurrentMonth);
+  if (closedMonth.length > 0) {
+    const ok = closedMonth.filter((t) => ticketSlaClassLive(t) !== 'breach').length;
+    const pct = Math.round((100 * ok) / closedMonth.length);
+    const bad = closedMonth.length - ok;
+    if (bad === 0) return { pct, slaKey: 'index.hero.sla.note.on_target_month', slaVars: null };
+    const breachKey = bad === 1 ? 'index.hero.sla.note.breach_one' : 'index.hero.sla.note.breach_many';
+    return { pct, slaKey: breachKey, slaVars: { bad, total: closedMonth.length } };
+  }
+  const open = list.filter((t) => !isTicketResolvedDash(t));
+  if (open.length === 0) return { pct: 100, slaKey: 'index.hero.sla.note.no_open', slaVars: null };
+  const breachOpen = open.filter((t) => ticketSlaClassLive(t) === 'breach').length;
+  const pct = Math.max(0, Math.min(100, Math.round(100 * (1 - breachOpen / open.length))));
+  if (breachOpen === 0) return { pct, slaKey: 'index.hero.sla.note.queue_ok', slaVars: null };
+  const overKey = breachOpen === 1 ? 'index.hero.sla.note.over_one' : 'index.hero.sla.note.over_many';
+  return { pct, slaKey: overKey, slaVars: { n: breachOpen } };
+}
+
+function isCriticalOrHighPriority(t) {
+  const p = String(t?.priority || '').toLowerCase();
+  return p === 'critical' || p === 'high';
+}
+
+function computeHeroCriticalLoad(tickets) {
+  const list = Array.isArray(tickets) ? tickets : [];
+  const active = list.filter((t) => !isTicketResolvedDash(t) && isCriticalOrHighPriority(t));
+  const needNow = active.filter(
+    (t) =>
+      t.assignedUserId == null ||
+      t.assignedUserId === '' ||
+      ticketSlaClassLive(t) === 'breach' ||
+      String(t?.status || '').toLowerCase() === 'open'
+  );
+  return { total: active.length, needNow: needNow.length };
+}
+
+function countHealthyFleetDevices() {
+  const devs = Array.isArray(DB?.devices) ? DB.devices : [];
+  return devs.filter((d) => {
+    const s = String(d?.status || '').toLowerCase();
+    return s === 'online' || s === 'good' || s === 'active' || s === 'in-use' || s === 'healthy';
+  }).length;
+}
+
+function computeHeroDailyFocus(stats, tickets, criticalHero) {
+  const overdue = Number(stats?.overdueTickets || 0);
+  if (overdue > 0) {
+    return {
+      titleKey: 'index.hero.focus.title.backlog',
+      noteKey: 'index.hero.focus.note.backlog',
+      noteVars: { n: overdue },
+    };
+  }
+  if (criticalHero.needNow > 0) {
+    return {
+      titleKey: 'index.hero.focus.title.critical_queue',
+      noteKey: 'index.hero.focus.note.critical',
+      noteVars: { n: criticalHero.needNow },
+    };
+  }
+  const unassigned = (Array.isArray(tickets) ? tickets : []).filter(
+    (t) => !isTicketResolvedDash(t) && (t.assignedUserId == null || t.assignedUserId === '')
+  ).length;
+  if (unassigned > 0) {
+    return {
+      titleKey: 'index.hero.focus.title.assignments',
+      noteKey: 'index.hero.focus.note.unassigned',
+      noteVars: { n: unassigned },
+    };
+  }
+  const open = Number(stats?.openTickets || 0);
+  if (open > 0) {
+    const noteKey = open === 1 ? 'index.hero.focus.note.open_one' : 'index.hero.focus.note.open_many';
+    return {
+      titleKey: 'index.hero.focus.title.queue',
+      noteKey,
+      noteVars: { n: open },
+    };
+  }
+  return {
+    titleKey: 'index.hero.focus.title.steady',
+    noteKey: 'index.hero.focus.note.steady',
+    noteVars: null,
+  };
+}
+
+function renderHeroSignals() {
+  const tickets = getSafeTickets();
+  const stats = getDashboardStats();
+  const sla = computeHeroSlaPulse(tickets);
+  const crit = computeHeroCriticalLoad(tickets);
+  const fleetOnline = countHealthyFleetDevices();
+  const invHealthy = Number(stats.devicesHealthy || 0);
+  const fleetTotal = invHealthy + fleetOnline;
+  const focus = computeHeroDailyFocus(stats, tickets, crit);
+
+  const elSlaV = document.getElementById('hero-sla-value');
+  const elSlaN = document.getElementById('hero-sla-note');
+  const elCritV = document.getElementById('hero-critical-value');
+  const elCritN = document.getElementById('hero-critical-note');
+  const elFleetV = document.getElementById('hero-fleet-value');
+  const elFleetN = document.getElementById('hero-fleet-note');
+  const elFocusT = document.getElementById('hero-focus-title');
+  const elFocusN = document.getElementById('hero-focus-note');
+
+  if (elSlaV) elSlaV.textContent = `${sla.pct}%`;
+  if (elSlaN) {
+    elSlaN.textContent = dashTf(
+      sla.slaKey,
+      sla.slaVars || {},
+      sla.slaKey === 'index.hero.sla.note.on_target_month'
+        ? 'On target this month'
+        : sla.slaKey === 'index.hero.sla.note.breach_one'
+          ? '{bad} closure past SLA · {total} closed MTD'
+          : sla.slaKey === 'index.hero.sla.note.breach_many'
+            ? '{bad} closures past SLA · {total} closed MTD'
+            : sla.slaKey === 'index.hero.sla.note.no_open'
+              ? 'No open tickets'
+              : sla.slaKey === 'index.hero.sla.note.queue_ok'
+                ? 'Queue within SLA right now'
+                : sla.slaKey === 'index.hero.sla.note.over_one'
+                  ? '{n} active ticket over SLA'
+                  : '{n} active tickets over SLA'
+    );
+  }
+  if (elCritV) elCritV.textContent = String(crit.total);
+  if (elCritN) {
+    elCritN.textContent =
+      crit.needNow > 0
+        ? dashTf('index.hero.critical.need_now', { n: crit.needNow }, '{n} need action now')
+        : crit.total > 0
+          ? dashTf('index.hero.critical.all_moving', {}, 'All critical/high owned & in motion')
+          : dashTf('index.hero.critical.none', {}, 'No critical/high in queue');
+  }
+  if (elFleetV) elFleetV.textContent = String(fleetTotal);
+  if (elFleetN) {
+    elFleetN.textContent =
+      fleetTotal > 0
+        ? dashTf(
+            'index.hero.fleet.breakdown',
+            { inv: invHealthy, online: fleetOnline },
+            '{inv} inventory · {online} fleet online'
+          )
+        : dashTf('index.hero.fleet.empty', {}, 'Add inventory or fleet devices to track health');
+  }
+  if (elFocusT) {
+    elFocusT.textContent = dashTf(
+      focus.titleKey,
+      {},
+      focus.titleKey === 'index.hero.focus.title.backlog'
+        ? 'Backlog'
+        : focus.titleKey === 'index.hero.focus.title.critical_queue'
+          ? 'Critical queue'
+          : focus.titleKey === 'index.hero.focus.title.assignments'
+            ? 'Assignments'
+            : focus.titleKey === 'index.hero.focus.title.queue'
+              ? 'Queue'
+              : 'Steady'
+    );
+  }
+  if (elFocusN) {
+    const fk = focus.noteKey;
+    const fv = focus.noteVars || {};
+    const enFall =
+      fk === 'index.hero.focus.note.backlog'
+        ? '{n} overdue SLA · resolve breaches first'
+        : fk === 'index.hero.focus.note.critical'
+          ? '{n} critical/high need action now'
+          : fk === 'index.hero.focus.note.unassigned'
+            ? '{n} unassigned · pick up ownership'
+            : fk === 'index.hero.focus.note.open_one'
+              ? '{n} open ticket · keep flow moving'
+              : fk === 'index.hero.focus.note.open_many'
+                ? '{n} open tickets · keep flow moving'
+                : 'No urgent SLA or assignment flags';
+    elFocusN.textContent = dashTf(fk, fv, enFall);
+  }
 }
 
 function toSlaSplitPct(met, warn, breach) {
@@ -621,6 +828,7 @@ function renderUnifiedKpis() {
   if (elHealthy) elHealthy.textContent = String(stats.devicesHealthy ?? 0);
   if (elCritical) elCritical.textContent = String(stats.criticalDevices ?? 0);
   if (elReplacement) elReplacement.textContent = String(stats.replacementSoon ?? 0);
+  renderHeroSignals();
 }
 
 /* ---- KPI Counter Animation ---- */
@@ -1346,6 +1554,14 @@ void (async () => {
 })();
 
 window.addEventListener('diatech:data-changed', () => scheduleDashboardFullRefresh());
+
+window.addEventListener('i18n:change', () => {
+  try {
+    renderHeroSignals();
+  } catch (e) {
+    console.error('Dashboard error:', e);
+  }
+});
 
 window.addEventListener('storage', () => {
   scheduleDashboardFullRefresh();

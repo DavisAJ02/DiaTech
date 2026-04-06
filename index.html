@@ -98,37 +98,37 @@
   </header>
 
 
-  <section class="dashboard-hero">
+  <section class="dashboard-hero" data-i18n-ignore>
     <div class="dashboard-hero-panel dashboard-hero-panel--lead">
-      <div class="dashboard-hero-kicker">DiaTech command center</div>
-      <h2 class="dashboard-hero-title">Keep service operations calm, visible, and ahead of risk.</h2>
-      <p class="dashboard-hero-copy">Monitor ticket pressure, asset health, and alert escalation from one flagship view designed for fast daily decision-making.</p>
+      <div class="dashboard-hero-kicker" data-i18n="index.hero.lead.kicker">DiaTech command center</div>
+      <h2 class="dashboard-hero-title" data-i18n="index.hero.lead.title">Keep service operations calm, visible, and ahead of risk.</h2>
+      <p class="dashboard-hero-copy" data-i18n="index.hero.lead.copy">Monitor ticket pressure, asset health, and alert escalation from one flagship view designed for fast daily decision-making.</p>
       <div class="dashboard-hero-actions">
-        <button class="btn-primary" onclick="window.location='tickets.html'">Review Priority Queue</button>
-        <button class="btn-secondary" onclick="window.location='reports.html'">Open Executive Report</button>
+        <button type="button" class="btn-primary" onclick="window.location='tickets.html'" data-i18n="index.hero.cta.queue">Review priority queue</button>
+        <button type="button" class="btn-secondary" onclick="window.location='reports.html'" data-i18n="index.hero.cta.report">Open executive report</button>
       </div>
     </div>
     <div class="dashboard-hero-panel dashboard-hero-panel--signal">
       <div class="hero-signal-grid">
         <div class="hero-signal-card">
-          <span class="hero-signal-label">SLA pulse</span>
-          <strong class="hero-signal-value">90%</strong>
-          <span class="hero-signal-note">On target this month</span>
+          <span class="hero-signal-label" data-i18n="index.hero.sla.label">SLA pulse</span>
+          <strong class="hero-signal-value" id="hero-sla-value">—</strong>
+          <span class="hero-signal-note" id="hero-sla-note">…</span>
         </div>
         <div class="hero-signal-card">
-          <span class="hero-signal-label">Critical load</span>
-          <strong class="hero-signal-value">12</strong>
-          <span class="hero-signal-note">3 need action now</span>
+          <span class="hero-signal-label" data-i18n="index.hero.critical.label">Critical load</span>
+          <strong class="hero-signal-value" id="hero-critical-value">—</strong>
+          <span class="hero-signal-note" id="hero-critical-note">—</span>
         </div>
         <div class="hero-signal-card">
-          <span class="hero-signal-label">Active fleet</span>
-          <strong class="hero-signal-value">199</strong>
-          <span class="hero-signal-note">Devices reporting healthy</span>
+          <span class="hero-signal-label" data-i18n="index.hero.fleet.label">Active fleet</span>
+          <strong class="hero-signal-value" id="hero-fleet-value">—</strong>
+          <span class="hero-signal-note" id="hero-fleet-note">—</span>
         </div>
         <div class="hero-signal-card">
-          <span class="hero-signal-label">Daily focus</span>
-          <strong class="hero-signal-value">Backlog</strong>
-          <span class="hero-signal-note">Resolve overdue before noon</span>
+          <span class="hero-signal-label" data-i18n="index.hero.focus.label">Daily focus</span>
+          <strong class="hero-signal-value" id="hero-focus-title">—</strong>
+          <span class="hero-signal-note" id="hero-focus-note">—</span>
         </div>
       </div>
     </div>
