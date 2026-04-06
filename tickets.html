@@ -433,13 +433,15 @@ function statusBadge(status) {
   return `<span class="sla-badge ${cls}">${label}</span>`;
 }
 
-function assigneeCell(assignedUserId) {
+function assigneeCell(ticket) {
+  const assignedUserId = ticket.assignedUserId;
   const canAssign = typeof RoleUi === 'undefined' || RoleUi.canAssignTickets();
   if (assignedUserId == null || assignedUserId === '') {
     if (!canAssign) {
       return '<span class="ticket-assign-placeholder" style="color:var(--text-muted);font-size:12px">—</span>';
     }
-    return `<button type="button" class="assign-btn" onclick="this.textContent='Assigned ✓';this.style.background='#10b981';this.disabled=true">Assigner</button>`;
+    const tid = Number(ticket.id);
+    return `<button type="button" class="assign-btn" onclick="openEditTicket(${tid})">Assigner</button>`;
   }
   const u = getUserById(assignedUserId);
   const color = u?.avatarColor || '#64748b';
@@ -479,7 +481,7 @@ function renderTickets() {
       <td><span class="ticket-id">#${t.id}</span></td>
       <td class="ticket-name">${t.title}</td>
       <td>${departmentCell(t.department)}</td>
-      <td>${assigneeCell(t.assignedUserId)}</td>
+      <td>${assigneeCell(t)}</td>
       <td>${priorityBadge(t.priority)}</td>
       <td>${statusBadge(t.status)}</td>
       <td>${(() => { const s = ticketSlaMeta(t); return slaBadge(s.label, s.cls); })()}</td>
@@ -558,13 +560,14 @@ window.saveEditTicket = async function() {
     errEl.textContent = 'Ticket not found.';
     return;
   }
+  const canAssignRole = typeof RoleUi === 'undefined' || RoleUi.canAssignTickets();
   const title = document.getElementById('et-title').value.trim();
   const priority = document.getElementById('et-priority').value;
   const canUpdateStatus = typeof RoleUi === 'undefined' || RoleUi.canUpdateTicketStatus();
   const status = canUpdateStatus
     ? document.getElementById('et-status').value
     : t.status || 'open';
-  const agentVal = document.getElementById('et-agent').value;
+  const agentVal = canAssignRole ? document.getElementById('et-agent').value : '';
 
   if (!title) {
     errEl.textContent = 'Title cannot be empty.';
@@ -580,7 +583,7 @@ window.saveEditTicket = async function() {
   }
 
   let assignedUserId = t.assignedUserId;
-  if (typeof RoleUi !== 'undefined' && RoleUi.canAssignTickets()) {
+  if (canAssignRole) {
     assignedUserId = null;
     if (agentVal !== '') {
       const uid = Number(agentVal);
@@ -630,7 +633,7 @@ window.saveEditTicket = async function() {
       sla: t.sla,
       slaClass: t.slaClass,
     };
-    if (typeof RoleUi !== 'undefined' && RoleUi.canAssignTickets()) {
+    if (canAssignRole) {
       if (agentVal === '') body.assigneeCleared = true;
       else {
         const au = getUserById(Number(agentVal));

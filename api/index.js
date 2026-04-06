@@ -116,10 +116,23 @@ async function resolveAssigneeUuidFromEmail(serviceClient, email) {
   return data || null;
 }
 
-async function profileIsAdmin(serviceClient, userId) {
-  if (!serviceClient || !userId) return false;
+/** @returns {Promise<'admin'|'agent'|'user'|null>} */
+async function fetchProfileRole(serviceClient, userId) {
+  if (!serviceClient || !userId) return null;
   const { data } = await serviceClient.from("profiles").select("role").eq("id", userId).maybeSingle();
-  return data?.role === "admin";
+  const r = String(data?.role || "").toLowerCase();
+  if (r === "admin" || r === "agent" || r === "user") return r;
+  return "user";
+}
+
+function profileMayAssignTickets(role) {
+  return role === "admin" || role === "agent";
+}
+
+function sameTicketAssignedUserId(a, b) {
+  if (a == null && b == null) return true;
+  if (a == null || b == null) return false;
+  return Number(a) === Number(b);
 }
 
 /** Met à jour app_state.tickets depuis dia_tickets (service_role) pour /api/dashboard/stats et le reste. */
@@ -573,7 +586,8 @@ app.post("/api/tickets-rls", async (req, res) => {
   const uid = userData.user.id;
 
   const svc = getSupabaseServiceOnly();
-  const isAdmin = svc ? await profileIsAdmin(svc, uid) : false;
+  const profileRole = svc ? await fetchProfileRole(svc, uid) : null;
+  const mayAssign = profileMayAssignTickets(profileRole);
 
   const body = req.body || {};
   const id = Number(body.id);
@@ -594,7 +608,32 @@ app.post("/api/tickets-rls", async (req, res) => {
   let created_by = existing ? existing.created_by : uid;
   let assigned_to = existing ? existing.assigned_to : null;
 
-  if (isAdmin && svc) {
+  if (!mayAssign) {
+    const triesAssignTransport =
+      body.assigneeCleared === true ||
+      body.assigneeCleared === "true" ||
+      (body.assigneeEmail != null && String(body.assigneeEmail).trim() !== "") ||
+      (body.assignedToAuthId !== undefined &&
+        body.assignedToAuthId !== null &&
+        String(body.assignedToAuthId).trim() !== "");
+    if (triesAssignTransport) {
+      return res.status(403).json({
+        error: "assign_forbidden",
+        detail: "Only admin and agent may assign or unassign tickets.",
+      });
+    }
+    if (existing && !sameTicketAssignedUserId(base.assignedUserId, merged.assignedUserId)) {
+      return res.status(403).json({
+        error: "assign_forbidden",
+        detail: "Only admin and agent may change ticket assignee.",
+      });
+    }
+    if (existing) {
+      merged.assignedUserId = base.assignedUserId ?? null;
+    } else {
+      merged.assignedUserId = null;
+    }
+  } else if (svc) {
     if (body.assigneeCleared === true || body.assigneeCleared === "true") {
       assigned_to = null;
       merged.assignedUserId = null;

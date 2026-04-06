@@ -3917,6 +3917,33 @@ body[data-page='index'] .card.card-fullwidth {
 
 
 
+/* Dashboard: layout par rôle (admin | agent | user) */
+.dash-user-only {
+  display: none;
+}
+body.dash-role-user .dash-user-only {
+  display: block;
+}
+body.dash-role-user .dash-not-user {
+  display: none !important;
+}
+body.dash-role-agent .dash-agent-hide {
+  display: none !important;
+}
+body.dash-role-admin .dash-hide-from-admin,
+body.dash-role-user .dash-hide-from-user {
+  display: none !important;
+}
+.dash-agent-only {
+  display: none !important;
+}
+body.dash-role-agent .dash-agent-only {
+  display: block !important;
+}
+body.dash-role-user .dash-hide-user {
+  display: none !important;
+}
+
 /* Responsive shell stability pass */
 .main-content > .container,
 .main-content > .app-content {

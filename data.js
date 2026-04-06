@@ -11,16 +11,16 @@ const DB = {
    * Passwords, refresh tokens, and sessions must live server-side only.
    */
   tickets: [
-    { id: 1531, title: "Machine status unknown",      priority: "critical", status: "open",         sla: "+4d", slaClass: "ok",     assignedUserId: null, department: "IT", createdAt: "2026-03-01T09:00:00.000Z", resolvedAt: null },
-    { id: 1532, title: "New employee onboarding",     priority: "low",      status: "open",         sla: "+1h", slaClass: "ok",     assignedUserId: null, department: "Secretariat", createdAt: "2026-03-02T10:15:00.000Z", resolvedAt: null },
-    { id: 1533, title: "CPU temperature",             priority: "critical", status: "in-progress", sla: "+5d", slaClass: "ok",     assignedUserId: null, department: "IT", createdAt: "2026-03-04T08:35:00.000Z", resolvedAt: null },
-    { id: 1553, title: "Fan speed (left side, right side)", priority: "medium", status: "open", sla: "-1h", slaClass: "breach", assignedUserId: null, department: "Maintenance", createdAt: "2026-03-08T11:00:00.000Z", resolvedAt: null },
-    { id: 1534, title: "Disk space low – SRV01",      priority: "high",     status: "in-progress", sla: "+2h", slaClass: "warn",   assignedUserId: 2, department: "IT", createdAt: "2026-03-10T14:40:00.000Z", resolvedAt: null },
-    { id: 1535, title: "VPN connection failed",       priority: "critical", status: "open",         sla: "-22h",slaClass: "breach", assignedUserId: 4, department: "IT", createdAt: "2026-03-14T07:20:00.000Z", resolvedAt: null },
-    { id: 1536, title: "Antivirus out of date",       priority: "medium",   status: "resolved",     sla: "+3d", slaClass: "ok",     assignedUserId: 3, department: "Médical", createdAt: "2026-03-18T12:10:00.000Z", resolvedAt: "2026-03-20T16:30:00.000Z" },
-    { id: 1537, title: "Windows update pending",      priority: "low",      status: "open",         sla: "+7d", slaClass: "ok",     assignedUserId: 3, department: "Facturation", createdAt: "2026-03-22T09:50:00.000Z", resolvedAt: null },
-    { id: 1538, title: "Network switch unresponsive", priority: "critical", status: "in-progress", sla: "-6h", slaClass: "breach", assignedUserId: 4, department: "IT", createdAt: "2026-03-25T13:05:00.000Z", resolvedAt: null },
-    { id: 1539, title: "Email queue backup",          priority: "high",     status: "open",         sla: "-2h", slaClass: "breach", assignedUserId: 2, department: "Finance & Comptabilité", createdAt: "2026-03-27T15:25:00.000Z", resolvedAt: null },
+    { id: 1531, title: "Machine status unknown",      priority: "critical", status: "open",         sla: "+4d", slaClass: "ok",     assignedUserId: null, createdByUserId: 1, createdByEmail: "papy.matala@cmd.local", department: "IT", createdAt: "2026-03-01T09:00:00.000Z", resolvedAt: null },
+    { id: 1532, title: "New employee onboarding",     priority: "low",      status: "open",         sla: "+1h", slaClass: "ok",     assignedUserId: null, createdByUserId: 3, createdByEmail: "david-adrien.ntumba@cmd.local", department: "Secretariat", createdAt: "2026-03-02T10:15:00.000Z", resolvedAt: null },
+    { id: 1533, title: "CPU temperature",             priority: "critical", status: "in-progress", sla: "+5d", slaClass: "ok",     assignedUserId: null, createdByUserId: 2, createdByEmail: "guy-roger.kabongo@cmd.local", department: "IT", createdAt: "2026-03-04T08:35:00.000Z", resolvedAt: null },
+    { id: 1553, title: "Fan speed (left side, right side)", priority: "medium", status: "open", sla: "-1h", slaClass: "breach", assignedUserId: null, createdByUserId: 4, createdByEmail: "zied.benali@cmd.local", department: "Maintenance", createdAt: "2026-03-08T11:00:00.000Z", resolvedAt: null },
+    { id: 1534, title: "Disk space low – SRV01",      priority: "high",     status: "in-progress", sla: "+2h", slaClass: "warn",   assignedUserId: 2, createdByUserId: 3, department: "IT", createdAt: "2026-03-10T14:40:00.000Z", resolvedAt: null },
+    { id: 1535, title: "VPN connection failed",       priority: "critical", status: "open",         sla: "-22h",slaClass: "breach", assignedUserId: 4, createdByUserId: 1, department: "IT", createdAt: "2026-03-14T07:20:00.000Z", resolvedAt: null },
+    { id: 1536, title: "Antivirus out of date",       priority: "medium",   status: "resolved",     sla: "+3d", slaClass: "ok",     assignedUserId: 3, createdByUserId: 2, department: "Médical", createdAt: "2026-03-18T12:10:00.000Z", resolvedAt: "2026-03-20T16:30:00.000Z" },
+    { id: 1537, title: "Windows update pending",      priority: "low",      status: "open",         sla: "+7d", slaClass: "ok",     assignedUserId: 3, createdByUserId: 4, department: "Facturation", createdAt: "2026-03-22T09:50:00.000Z", resolvedAt: null },
+    { id: 1538, title: "Network switch unresponsive", priority: "critical", status: "in-progress", sla: "-6h", slaClass: "breach", assignedUserId: 4, createdByUserId: 3, department: "IT", createdAt: "2026-03-25T13:05:00.000Z", resolvedAt: null },
+    { id: 1539, title: "Email queue backup",          priority: "high",     status: "open",         sla: "-2h", slaClass: "breach", assignedUserId: 2, createdByUserId: 1, department: "Finance & Comptabilité", createdAt: "2026-03-27T15:25:00.000Z", resolvedAt: null },
   ],
 
   departments: [
@@ -337,8 +337,20 @@ const DEFAULT_AGENT_PAGES = [
   "it-analytics.html",
 ];
 
-/** Rôle `user` (sans agent) : accès lecture opérationnelle, sans réglages avancés */
-const USER_ROLE_PAGES = DEFAULT_AGENT_PAGES.filter((f) => f !== "settings.html");
+/** Profil `user` (Supabase ou local) : pas d’accès à ces pages — même règle que role-ui.js / sidebar. */
+const PROFILE_USER_EXCLUDED_PAGES = Object.freeze([
+  "inventory.html",
+  "it-analytics.html",
+  "settings.html",
+]);
+if (typeof window !== "undefined") {
+  window.DIATECH_PROFILE_USER_EXCLUDED = PROFILE_USER_EXCLUDED_PAGES;
+}
+
+/** Rôle `user` (sans agent) : modules par défaut = agent sans inventory / analytics / réglages */
+const USER_ROLE_PAGES = DEFAULT_AGENT_PAGES.filter((f) =>
+  !PROFILE_USER_EXCLUDED_PAGES.includes(String(f).toLowerCase())
+);
 
 const INVENTORY_STORAGE_KEY = "nexusops_inventory_v2";
 
@@ -713,9 +725,7 @@ function userCanAccessPage(filename, user) {
     return new Set(["index.html", "tickets.html", "devices.html"]).has(f);
   }
   if (pr === "user") {
-    if (["inventory.html", "it-analytics.html", "settings.html"].includes(f))
-      return false;
-    return true;
+    return !PROFILE_USER_EXCLUDED_PAGES.includes(f);
   }
   return false;
 }

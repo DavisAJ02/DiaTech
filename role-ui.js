@@ -34,13 +34,20 @@
     return hasRole("user");
   }
 
+  function profileUserExcludedFiles() {
+    const x = global.DIATECH_PROFILE_USER_EXCLUDED;
+    if (Array.isArray(x) && x.length)
+      return x.map((p) => String(p).toLowerCase());
+    return ["inventory.html", "it-analytics.html", "settings.html"];
+  }
+
   function navFileVisibleForRole(file, role) {
     if (role === "admin") return true;
     if (role === "agent") {
       return ["index.html", "tickets.html", "devices.html"].includes(file);
     }
     if (role === "user") {
-      return !["inventory.html", "it-analytics.html", "settings.html"].includes(file);
+      return !profileUserExcludedFiles().includes(file);
     }
     return false;
   }
@@ -60,7 +67,8 @@
 
   function canAssignTickets() {
     syncCurrentUserRole();
-    return global.currentUserRole === "admin";
+    const r = global.currentUserRole;
+    return r === "admin" || r === "agent";
   }
 
   function canUpdateTicketStatus() {

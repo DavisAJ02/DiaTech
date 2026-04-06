@@ -134,6 +134,27 @@
     });
   }
 
+  function currentProfileRoleForApi() {
+    var r =
+      typeof window !== "undefined" && window.currentUserRole != null
+        ? String(window.currentUserRole).toLowerCase().trim()
+        : "";
+    if (r === "admin" || r === "agent" || r === "user") return r;
+    if (typeof getPrimaryProfileRole === "function") return getPrimaryProfileRole();
+    return "user";
+  }
+
+  function stripAssignPayloadForRole(ticket) {
+    var t = ticket && typeof ticket === "object" ? { ...ticket } : {};
+    var role = currentProfileRoleForApi();
+    if (role === "admin" || role === "agent") return t;
+    delete t.assigneeEmail;
+    delete t.assigneeCleared;
+    delete t.assignedToAuthId;
+    delete t.createdByAuthId;
+    return t;
+  }
+
   async function saveAppDataWithResult(payload) {
     try {
       const res = await fetch(`${API_BASE}/app-data`, {
@@ -171,7 +192,10 @@
     shouldUseTicketsRls,
     getTicketsRls: () => requestWithResultAuth("/tickets-rls"),
     upsertTicketRlsWithResult: (ticket) =>
-      requestWithResultAuth("/tickets-rls", { method: "POST", body: JSON.stringify(ticket || {}) }),
+      requestWithResultAuth("/tickets-rls", {
+        method: "POST",
+        body: JSON.stringify(stripAssignPayloadForRole(ticket || {})),
+      }),
     deleteTicketRls: (id) =>
       requestWithResultAuth(`/tickets-rls/${encodeURIComponent(String(id))}`, { method: "DELETE" }),
 

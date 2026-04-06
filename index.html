@@ -81,7 +81,7 @@
   <!-- TOPBAR -->
   <header class="topbar header">
     <div class="topbar-left header-left">
-      <h1 class="page-title" data-i18n="index.page.title">Dashboard</h1>
+      <h1 class="page-title" data-i18n-ignore id="dash-page-title">Dashboard</h1>
       <span class="topbar-date header-date" id="topbar-date"></span>
     </div>
     <div class="topbar-right header-right">
@@ -89,7 +89,7 @@
         <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
         <input type="text" data-i18n-placeholder="index.search.placeholder" placeholder="Search tickets, devices…" />
       </div>
-      <button class="btn-primary" onclick="window.location='devices.html'">
+      <button type="button" class="btn-primary dash-hide-user" onclick="window.location='devices.html'">
         <svg viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
         <span data-i18n="index.install.agent">Installer l'agent</span>
       </button>
@@ -99,8 +99,29 @@
       </button></div>
   </header>
 
+  <section id="dash-user-panel" class="dash-user-only card card-fullwidth" style="margin-bottom: var(--layout-gap, 20px)">
+    <div class="card-header">
+      <h2>Mon assistance TI</h2>
+      <p class="insights-sub" style="margin:0;font-weight:400">Suivez vos demandes et ouvrez un nouveau ticket si besoin.</p>
+    </div>
+    <div style="display:flex;gap:12px;margin-bottom:18px;flex-wrap:wrap;align-items:center">
+      <button type="button" class="btn-primary" onclick="window.location.href='tickets.html'">Créer un ticket</button>
+      <button type="button" class="btn-secondary" onclick="window.location.href='tickets.html'">Voir tous les tickets</button>
+    </div>
+    <h3 style="font-size:14px;margin:0 0 12px;font-weight:600;color:var(--text-muted)">Mes tickets</h3>
+    <div class="table-responsive">
+      <table class="data-table">
+        <thead>
+          <tr><th>ID</th><th>Sujet</th><th>Statut</th><th>Priorité</th><th></th></tr>
+        </thead>
+        <tbody id="dash-user-my-tickets-body">
+          <tr><td colspan="5" style="color:var(--text-muted);font-size:13px">Chargement…</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
 
-  <section class="dashboard-hero" data-i18n-ignore>
+  <section class="dashboard-hero dash-not-user" data-i18n-ignore>
     <div class="dashboard-hero-panel dashboard-hero-panel--lead">
       <div class="dashboard-hero-kicker" data-i18n="index.hero.lead.kicker">DiaTech command center</div>
       <h2 class="dashboard-hero-title" data-i18n="index.hero.lead.title">Keep service operations calm, visible, and ahead of risk.</h2>
@@ -136,7 +157,7 @@
     </div>
   </section>
   <!-- KPI STRIP (Unified Tickets + Inventory) -->
-  <section class="kpi-grid">
+  <section class="kpi-grid dash-not-user">
     <div class="kpi-card" data-color="blue">
       <div class="kpi-label">Open Tickets</div>
       <div class="kpi-value" id="kpi-open-tickets">0</div>
@@ -169,10 +190,27 @@
     </div>
   </section>
 
-  <div class="dashboard-stack">
+  <section class="card card-fullwidth dash-agent-only dash-hide-from-user" style="margin-bottom: var(--layout-gap, 20px)">
+    <div class="card-header">
+      <h2>Tickets ouverts — assignés à moi</h2>
+      <a href="tickets.html" class="card-link">File complète →</a>
+    </div>
+    <div class="table-responsive">
+      <table class="data-table">
+        <thead>
+          <tr><th>ID</th><th>Sujet</th><th>Priorité</th><th>SLA</th><th>Statut</th></tr>
+        </thead>
+        <tbody id="dash-agent-assigned-body">
+          <tr><td colspan="5" style="color:var(--text-muted);font-size:13px">Chargement…</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <div class="dashboard-stack dash-not-user">
 
     <!-- Insights + global range (full width, outside chart grids) -->
-    <div class="card card-fullwidth dashboard-insights-card">
+    <div class="card card-fullwidth dashboard-insights-card dash-agent-hide">
       <div class="analytics-toolbar">
         <div>
           <h2 class="insights-title">Analytics overview</h2>
@@ -188,7 +226,7 @@
     </div>
 
     <!-- Primary analytics charts -->
-    <div class="dashboard-grid-cq">
+    <div class="dashboard-grid-cq dash-agent-hide">
     <div class="dashboard-grid">
 
     <!-- Ticket trend (line) -->
@@ -247,7 +285,7 @@
     </div><!-- /dashboard-grid-cq -->
 
     <!-- Alerts, OS (two columns); Critical full-width below -->
-    <div class="dashboard-grid-cq">
+    <div class="dashboard-grid-cq dash-agent-hide">
     <div class="dashboard-grid" style="grid-template-columns: 1fr 1fr;">
     <!-- Alerts Status -->
     <div class="card" style="grid-column: span 1; align-self: start;">
@@ -314,7 +352,7 @@
     </div>
 
     <!-- Availability, satisfaction, and downstream widgets -->
-    <div class="dashboard-grid-cq">
+    <div class="dashboard-grid-cq dash-agent-hide">
     <div class="dashboard-grid">
 
     <!-- Availability Monitoring -->
@@ -367,7 +405,7 @@
     </div>
 
     <!-- Unassigned Tickets (full-width) -->
-    <div class="card card-fullwidth">
+    <div class="card card-fullwidth dash-agent-hide">
       <div class="card-header">
         <h2>Unassigned Tickets</h2>
         <button class="btn-secondary" onclick="window.location='tickets.html'">Assigner tout</button>

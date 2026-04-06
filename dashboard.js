@@ -37,6 +37,127 @@ function getSafeTickets() {
   return Array.isArray(DB?.tickets) ? DB.tickets : [];
 }
 
+/** @returns {'admin'|'agent'|'user'} */
+function getDashboardRole() {
+  const w =
+    typeof window !== 'undefined' && window.currentUserRole != null && String(window.currentUserRole).trim() !== ''
+      ? String(window.currentUserRole).toLowerCase().trim()
+      : '';
+  if (w === 'admin' || w === 'agent' || w === 'user') return w;
+  if (typeof getPrimaryProfileRole === 'function') return getPrimaryProfileRole();
+  return 'user';
+}
+
+function getDashboardActorUser() {
+  return typeof getCurrentUser === 'function' ? getCurrentUser() : null;
+}
+
+function ticketMatchesCreatedBy(t, u) {
+  if (!u) return false;
+  const uid = Number(u.id);
+  if (Number.isFinite(uid) && uid > 0) {
+    if (t.createdByUserId != null && Number(t.createdByUserId) === uid) return true;
+    if (t.created_by != null && Number(t.created_by) === uid) return true;
+  }
+  const em = String(u.email || '').trim().toLowerCase();
+  if (!em) return false;
+  const fields = [t.createdByEmail, t.requesterEmail, t.created_by_email, t.requester_user_email];
+  for (let i = 0; i < fields.length; i++) {
+    if (String(fields[i] || '').trim().toLowerCase() === em) return true;
+  }
+  return false;
+}
+
+function ticketMatchesAssignedTo(t, u) {
+  if (!u || u.id == null) return false;
+  const uid = Number(u.id);
+  if (!Number.isFinite(uid) || uid <= 0) return false;
+  return Number(t.assignedUserId) === uid;
+}
+
+/** Tickets visibles pour métriques / graphiques selon le rôle (admin = tout, agent = assignés, user = créés). */
+function getDashboardTickets() {
+  const all = getSafeTickets();
+  const role = getDashboardRole();
+  const u = getDashboardActorUser();
+  if (role === 'admin') return all;
+  if (role === 'agent') {
+    if (!u || Number(u.id) <= 0) return [];
+    return all.filter((x) => ticketMatchesAssignedTo(x, u));
+  }
+  if (role === 'user') return all.filter((x) => ticketMatchesCreatedBy(x, u));
+  return all;
+}
+
+function ticketsForDashboardStats() {
+  return getDashboardRole() === 'admin' ? getSafeTickets() : getDashboardTickets();
+}
+
+function ticketsForAnalytics() {
+  return getDashboardRole() === 'admin' ? getSafeTickets() : getDashboardTickets();
+}
+
+function dashEscapeHtml(s) {
+  return String(s)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
+
+function computeTicketCountStats(tickets) {
+  const list = Array.isArray(tickets) ? tickets : [];
+  const openTickets = list.filter((t) => String(t?.status || '').toLowerCase() === 'open').length;
+  const pendingTickets = list.filter((t) => {
+    const s = String(t?.status || '').toLowerCase();
+    return s === 'pending' || s === 'in-progress' || s === 'in_progress';
+  }).length;
+  const overdueTickets = list.filter((t) => {
+    const slaStatus = String(t?.slaStatus || '').toLowerCase();
+    const slaClass = String(t?.slaClass || '').toLowerCase();
+    return slaStatus === 'overdue' || slaClass === 'breach';
+  }).length;
+  return { openTickets, pendingTickets, overdueTickets };
+}
+
+function applyDashboardRoleShell() {
+  const role = getDashboardRole();
+  document.body.classList.remove('dash-role-admin', 'dash-role-agent', 'dash-role-user');
+  document.body.classList.add('dash-role-' + role);
+
+  const heroLead = document.querySelector('.dashboard-hero-panel--lead');
+  if (heroLead && role === 'agent') {
+    const kicker = heroLead.querySelector('.dashboard-hero-kicker');
+    const title = heroLead.querySelector('.dashboard-hero-title');
+    const copy = heroLead.querySelector('.dashboard-hero-copy');
+    const btnRep = heroLead.querySelector('.dashboard-hero-actions .btn-secondary');
+    if (kicker) kicker.textContent = 'Espace agent';
+    if (title) title.textContent = 'Vos tickets assignés et charge de travail';
+    if (copy) copy.textContent = 'Vue filtrée : seuls les tickets qui vous sont assignés comptent dans les indicateurs ci-dessous.';
+    if (btnRep) {
+      btnRep.style.display = 'none';
+    }
+  }
+  if (heroLead && role === 'admin') {
+    const btnRep = heroLead.querySelector('.dashboard-hero-actions .btn-secondary');
+    if (btnRep) btnRep.style.display = '';
+  }
+
+  const critCard = document.getElementById('critical-tickets-card');
+  const critH2 = critCard?.querySelector('.card-header h2');
+  if (critH2) {
+    critH2.textContent =
+      role === 'agent' ? 'Mes tickets critiques & retard SLA' : 'Critiques & en retard';
+  }
+
+  const pageTitle = document.getElementById('dash-page-title');
+  if (pageTitle) {
+    if (role === 'user') pageTitle.textContent = 'Mon espace';
+    else if (role === 'agent') pageTitle.textContent = 'Tableau de bord — Agent';
+    else pageTitle.textContent = 'Tableau de bord';
+  }
+}
+
 /** i18n string with {placeholders}; falls back to English template if I18n missing. */
 function dashTf(key, vars, enFallback) {
   if (typeof I18n !== 'undefined' && I18n.tf) return I18n.tf(key, vars || {}, enFallback);
@@ -181,30 +302,37 @@ window.getInventoryData = () => getSafeInventory();
 window.getTicketsData = () => getSafeTickets();
 
 function getDashboardStats() {
+  const role = getDashboardRole();
+  const scopedTix = ticketsForDashboardStats();
+  const tixCounts = computeTicketCountStats(scopedTix);
+
   if (dashboardApiStats && typeof dashboardApiStats === 'object') {
+    if (role === 'admin') {
+      return {
+        openTickets: Number(dashboardApiStats.openTickets || 0),
+        pendingTickets: Number(dashboardApiStats.pendingTickets || 0),
+        overdueTickets: Number(dashboardApiStats.overdueTickets || 0),
+        devicesHealthy: Number(dashboardApiStats.devicesHealthy || 0),
+        criticalDevices: Number(dashboardApiStats.criticalDevices || 0),
+        replacementSoon: Number(dashboardApiStats.replacementSoon || 0),
+      };
+    }
     return {
-      openTickets: Number(dashboardApiStats.openTickets || 0),
-      pendingTickets: Number(dashboardApiStats.pendingTickets || 0),
-      overdueTickets: Number(dashboardApiStats.overdueTickets || 0),
+      openTickets: tixCounts.openTickets,
+      pendingTickets: tixCounts.pendingTickets,
+      overdueTickets: tixCounts.overdueTickets,
       devicesHealthy: Number(dashboardApiStats.devicesHealthy || 0),
       criticalDevices: Number(dashboardApiStats.criticalDevices || 0),
       replacementSoon: Number(dashboardApiStats.replacementSoon || 0),
     };
   }
-  const tickets = window.getTicketsData ? window.getTicketsData() : getSafeTickets();
+  const tickets = scopedTix;
   const inventory = window.getInventoryData ? window.getInventoryData() : [];
   const year = new Date().getFullYear();
 
-  const openTickets = tickets.filter((t) => String(t?.status || '').toLowerCase() === 'open').length;
-  const pendingTickets = tickets.filter((t) => {
-    const s = String(t?.status || '').toLowerCase();
-    return s === 'pending' || s === 'in-progress' || s === 'in_progress';
-  }).length;
-  const overdueTickets = tickets.filter((t) => {
-    const slaStatus = String(t?.slaStatus || '').toLowerCase();
-    const slaClass = String(t?.slaClass || '').toLowerCase();
-    return slaStatus === 'overdue' || slaClass === 'breach';
-  }).length;
+  const openTickets = tixCounts.openTickets;
+  const pendingTickets = tixCounts.pendingTickets;
+  const overdueTickets = tixCounts.overdueTickets;
 
   const devicesHealthy = inventory.filter((d) => {
     const st = String(d?.status || '').toLowerCase();
@@ -369,7 +497,7 @@ function computeHeroDailyFocus(stats, tickets, criticalHero) {
 }
 
 function renderHeroSignals() {
-  const tickets = getSafeTickets();
+  const tickets = ticketsForDashboardStats();
   const stats = getDashboardStats();
   const sla = computeHeroSlaPulse(tickets);
   const crit = computeHeroCriticalLoad(tickets);
@@ -652,7 +780,7 @@ function departmentAlertPillCounts(deptName) {
 }
 
 function computeLiveAnalytics(range) {
-  const tickets = getSafeTickets();
+  const tickets = ticketsForAnalytics();
   const startMs = analyticsRangeStartMs(range);
   const now = Date.now();
   const inRange = tickets.filter((t) => {
@@ -853,7 +981,15 @@ function slaBadge(sla, cls) {
   return `<span class="sla-badge ${cls}">${sla}</span>`;
 }
 function techAvatar(assignedUserId) {
-  if (assignedUserId == null || assignedUserId === '') return `<button class="assign-btn">Assign</button>`;
+  const canAssign =
+    typeof RoleUi === 'undefined' ||
+    (typeof RoleUi.canAssignTickets === 'function' && RoleUi.canAssignTickets());
+  if (assignedUserId == null || assignedUserId === '') {
+    if (!canAssign) {
+      return '<span class="ticket-assign-placeholder" style="color:var(--text-muted);font-size:12px">—</span>';
+    }
+    return `<button type="button" class="assign-btn" onclick="window.location.href='tickets.html'" title="Assign in Tickets">Assign</button>`;
+  }
   const u = getUserById(assignedUserId) || { avatarColor: '#64748b', initials: '?', name: 'Unknown' };
   return `<div class="assignee-cell"><div class="tech-avatar" style="background:${u.avatarColor}" title="${u.name}">${u.initials}</div><span class="assignee-name">${u.name}</span></div>`;
 }
@@ -864,12 +1000,74 @@ window.assignTicket = function(id, btn) {
   btn.disabled = true;
 };
 
+function renderRoleDashboardTables() {
+  const role = getDashboardRole();
+  const userBody = document.getElementById('dash-user-my-tickets-body');
+  if (userBody) {
+    if (role !== 'user') {
+      userBody.innerHTML = '';
+    } else {
+      const mine = getDashboardTickets().slice().sort((a, b) => Number(b.id) - Number(a.id));
+      if (mine.length === 0) {
+        userBody.innerHTML =
+          '<tr><td colspan="5" style="color:var(--text-muted);font-size:13px">Aucun ticket associé à votre compte (créateur). Les nouveaux tickets apparaîtront ici.</td></tr>';
+      } else {
+        userBody.innerHTML = mine
+          .map(
+            (t) => `
+    <tr>
+      <td><span class="ticket-id">#${t.id}</span></td>
+      <td class="ticket-name">${dashEscapeHtml(t.title)}</td>
+      <td>${dashEscapeHtml(String(t.status || '—'))}</td>
+      <td>${priorityBadge(String(t.priority || 'low').toLowerCase())}</td>
+      <td><a href="tickets.html" class="card-link">Ouvrir</a></td>
+    </tr>`
+          )
+          .join('');
+      }
+    }
+  }
+
+  const agentBody = document.getElementById('dash-agent-assigned-body');
+  if (agentBody) {
+    if (role !== 'agent') {
+      agentBody.innerHTML =
+        '<tr><td colspan="5" style="color:var(--text-muted);font-size:13px">—</td></tr>';
+    } else {
+      const openAssigned = getDashboardTickets()
+        .filter((t) => !isTicketResolvedDash(t))
+        .slice()
+        .sort((a, b) => Number(b.id) - Number(a.id));
+      if (openAssigned.length === 0) {
+        agentBody.innerHTML =
+          '<tr><td colspan="5" style="color:var(--text-muted);font-size:13px">Aucun ticket ouvert ne vous est assigné.</td></tr>';
+      } else {
+        agentBody.innerHTML = openAssigned
+          .map(
+            (t) => `
+    <tr>
+      <td><span class="ticket-id">#${t.id}</span></td>
+      <td class="ticket-name">${dashEscapeHtml(t.title)}</td>
+      <td>${priorityBadge(String(t.priority || 'low').toLowerCase())}</td>
+      <td>${slaBadge(t.sla, t.slaClass)}</td>
+      <td>${dashEscapeHtml(String(t.status || '—'))}</td>
+    </tr>`
+          )
+          .join('');
+      }
+    }
+  }
+}
+
 function renderDashboardSidePanels() {
   const depts = Array.isArray(DB?.departments) ? DB.departments : [];
+  const role = getDashboardRole();
 
   const critBody = document.getElementById('critical-tickets-body');
   if (critBody) {
-    const critTickets = getSafeTickets().filter(t => t.slaClass === 'breach' || t.priority === 'critical').slice(0, 5);
+    const critTickets = getDashboardTickets()
+      .filter((t) => t.slaClass === 'breach' || t.priority === 'critical')
+      .slice(0, 5);
     critBody.innerHTML = critTickets.map(t => `
     <tr>
       <td><span class="ticket-id">#${t.id}</span> <span class="ticket-name">${t.title}</span></td>
@@ -882,6 +1080,9 @@ function renderDashboardSidePanels() {
 
   const unassignedBody = document.getElementById('unassigned-body');
   if (unassignedBody) {
+    if (role !== 'admin') {
+      unassignedBody.innerHTML = '';
+    } else {
     const unassigned = getSafeTickets().filter(t => !t.assignedUserId);
     unassignedBody.innerHTML = unassigned.map(t => `
     <tr>
@@ -892,10 +1093,11 @@ function renderDashboardSidePanels() {
       <td><button class="assign-btn" onclick="assignTicket(${t.id}, this)">Assign</button></td>
     </tr>
   `).join('');
+    }
   }
 
   const deptAlertsList = document.getElementById('department-alerts-list');
-  if (deptAlertsList && depts.length) {
+  if (deptAlertsList && depts.length && role === 'admin') {
     deptAlertsList.innerHTML = depts
       .map((d) => {
         const [a, b, c] = departmentAlertPillCounts(d.name);
@@ -910,7 +1112,7 @@ function renderDashboardSidePanels() {
   }
 
   const deptTicketsList = document.getElementById('department-tickets-list');
-  if (deptTicketsList && depts.length) {
+  if (deptTicketsList && depts.length && role === 'admin') {
     deptTicketsList.innerHTML = depts
       .map(
         (d) => `
@@ -1111,7 +1313,7 @@ function buildTicketVolumeChart(range) {
   if (!canvas) return;
   const ctx = canvas.getContext('2d');
   if (volumeChartInst) volumeChartInst.destroy();
-  const data = bucketVolumeForRange(getSafeTickets(), range);
+  const data = bucketVolumeForRange(ticketsForAnalytics(), range);
   const d = chartDefaults();
   const labels = data.map((_, i) => `P${i + 1}`);
 
@@ -1452,7 +1654,7 @@ function buildAlertCatChart() {
   if (!ctx) return;
   if (alertCatInst) alertCatInst.destroy();
   const d = chartDefaults();
-  const cat = computeAlertCategoriesFromTickets(getSafeTickets());
+  const cat = computeAlertCategoriesFromTickets(ticketsForAnalytics());
 
   alertCatInst = new Chart(ctx, {
     type: 'bar',
@@ -1522,11 +1724,13 @@ function rerenderAnalytics() {
 }
 
 function rerenderCharts() {
+  applyDashboardRoleShell();
   renderUnifiedKpis();
   void pullDashboardStatsFromApi();
   updateAlertStatusNumbers();
   updateOsDevicesTotalLine();
   renderAvailabilityTable();
+  renderRoleDashboardTables();
   renderDashboardSidePanels();
   rerenderAnalytics();
   updateSatisfactionFromSla(analyticsRange);
@@ -1557,6 +1761,8 @@ window.addEventListener('diatech:data-changed', () => scheduleDashboardFullRefre
 
 window.addEventListener('i18n:change', () => {
   try {
+    applyDashboardRoleShell();
+    renderRoleDashboardTables();
     renderHeroSignals();
   } catch (e) {
     console.error('Dashboard error:', e);
@@ -1605,7 +1811,7 @@ function relTime(ts) {
 
 function rebuildLiveNotifications() {
   const items = [];
-  const tickets = getSafeTickets();
+  const tickets = getDashboardRole() === 'admin' ? getSafeTickets() : getDashboardTickets();
   tickets
     .filter((t) => String(t?.priority || '').toLowerCase() === 'critical' && String(t?.status || '').toLowerCase() !== 'resolved')
     .slice(0, 4)
