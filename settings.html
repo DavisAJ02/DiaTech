@@ -117,6 +117,7 @@
         <div class="settings-nav-item" data-section="integrations" data-i18n="settings.nav.integrations">Integrations</div>
         <div class="settings-nav-item" data-section="security" data-i18n="settings.nav.security">Security</div>
         <div class="settings-nav-item" data-section="sla">SLA Policy</div>
+        <div class="settings-nav-item" data-section="backup" data-i18n="settings.nav.backup">Data backup</div>
         <div class="settings-nav-item" data-section="users" data-i18n="settings.nav.users">Users &amp; access</div>
       </div>
       <div>
@@ -227,6 +228,22 @@
             <div id="sla-policy-feedback" class="ue-hint" style="margin-top:10px"></div>
           </div>
         </div>
+        <!-- Backup / restore (server JSON) -->
+        <div class="settings-section" id="section-backup">
+          <div class="form-group">
+            <h3 data-i18n="settings.backup.title">JSON export / import (server)</h3>
+            <p class="ue-hint" style="margin-bottom:14px" data-i18n="settings.backup.intro">
+              Download a full snapshot of server-side data. Import replaces all remote data.
+            </p>
+            <div class="save-row" style="justify-content:flex-start;flex-wrap:wrap;gap:10px;margin-top:4px">
+              <button type="button" class="btn-primary" id="btn-backup-export" data-i18n="settings.backup.export">Export JSON</button>
+              <button type="button" class="btn-secondary" id="btn-backup-import" data-i18n="settings.backup.import">Import JSON</button>
+              <input type="file" id="backup-file-input" accept="application/json,.json" style="display:none" aria-hidden="true" />
+            </div>
+            <p class="ue-hint" data-i18n="settings.backup.import_hint">.json file exported from DiaTech or compatible.</p>
+            <div id="backup-feedback" class="ue-hint" style="margin-top:12px;min-height:20px;font-weight:500"></div>
+          </div>
+        </div>
       </div>
     </div>
   </div>
@@ -301,6 +318,101 @@ document.querySelectorAll('.settings-nav-item').forEach(item=>{
 });
 const hashSection = (window.location.hash || '').replace('#','');
 activateSettingsSection(hashSection || 'profile');
+
+function normalizeAppDataForImport(raw) {
+  if (!raw || typeof raw !== 'object') return null;
+  const copy = { ...raw };
+  delete copy._exportMeta;
+  return {
+    tickets: Array.isArray(copy.tickets) ? copy.tickets : [],
+    departments: Array.isArray(copy.departments) ? copy.departments : [],
+    devices: Array.isArray(copy.devices) ? copy.devices : [],
+    inventory: Array.isArray(copy.inventory) ? copy.inventory : [],
+    consumables: Array.isArray(copy.consumables) ? copy.consumables : [],
+    consumableLogs: Array.isArray(copy.consumableLogs) ? copy.consumableLogs : [],
+    expenses: Array.isArray(copy.expenses) ? copy.expenses : [],
+    expenseMonthlyBudget: Number(copy.expenseMonthlyBudget) || 0,
+    alertRules: copy.alertRules && typeof copy.alertRules === 'object' ? copy.alertRules : {},
+    slaPolicies: Array.isArray(copy.slaPolicies) ? copy.slaPolicies : [],
+  };
+}
+
+function backupT(key, vars) {
+  let s = (window.I18n && I18n.t(key, key)) || key;
+  if (vars && typeof vars === 'object') {
+    Object.keys(vars).forEach((k) => {
+      s = String(s).split(`{${k}}`).join(String(vars[k]));
+    });
+  }
+  return s;
+}
+
+document.getElementById('btn-backup-export')?.addEventListener('click', async () => {
+  const fb = document.getElementById('backup-feedback');
+  if (fb) fb.textContent = '';
+  if (typeof ApiClient === 'undefined') return;
+  const data = await ApiClient.getAppData();
+  if (!data) {
+    if (fb) fb.textContent = backupT('settings.backup.error_api');
+    return;
+  }
+  const payload = {
+    ...data,
+    _exportMeta: { exportedAt: new Date().toISOString(), app: 'DiaTech', schemaVersion: 1 },
+  };
+  const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json;charset=utf-8' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `diatech-backup-${new Date().toISOString().slice(0, 10)}.json`;
+  a.click();
+  URL.revokeObjectURL(a.href);
+});
+
+const backupFileInput = document.getElementById('backup-file-input');
+document.getElementById('btn-backup-import')?.addEventListener('click', () => {
+  backupFileInput?.click();
+});
+
+backupFileInput?.addEventListener('change', () => {
+  const fb = document.getElementById('backup-feedback');
+  const file = backupFileInput.files && backupFileInput.files[0];
+  backupFileInput.value = '';
+  if (!file || typeof ApiClient === 'undefined') return;
+  const reader = new FileReader();
+  reader.onload = async () => {
+    try {
+      const parsed = JSON.parse(String(reader.result).replace(/^\uFEFF/, ''));
+      const normalized = normalizeAppDataForImport(parsed);
+      if (!normalized) {
+        if (fb) fb.textContent = backupT('settings.backup.error_parse');
+        return;
+      }
+      if (!window.confirm(backupT('settings.backup.confirm_title'))) return;
+      const detail = backupT('settings.backup.confirm_counts', {
+        inv: normalized.inventory.length,
+        tix: normalized.tickets.length,
+        exp: normalized.expenses.length,
+        dev: normalized.devices.length,
+      });
+      if (!window.confirm(detail)) return;
+      const word = I18n.getLanguage() === 'fr' ? 'REMPLACER' : 'REPLACE';
+      const typed = window.prompt(backupT('settings.backup.type_confirm'));
+      if (String(typed || '').trim() !== word) return;
+      const res = await ApiClient.saveAppDataWithResult(normalized);
+      if (!res || !res.ok) {
+        const msg = res?.data?.message ? String(res.data.message) : backupT('settings.backup.error_save', { status: res ? res.status : '?' });
+        if (fb) fb.textContent = msg;
+        return;
+      }
+      if (fb) fb.textContent = backupT('settings.backup.success');
+      setTimeout(() => location.reload(), 900);
+    } catch (_e) {
+      if (fb) fb.textContent = backupT('settings.backup.error_parse');
+    }
+  };
+  reader.readAsText(file, 'UTF-8');
+});
+
 const languageSelect = document.getElementById('language-select');
 if (languageSelect && window.I18n) {
   languageSelect.value = I18n.getLanguage();

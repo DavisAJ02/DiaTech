@@ -283,6 +283,7 @@
 
   async function apiRequest(path, options = {}) {
     try {
+      const method = String(options.method || "GET").toUpperCase();
       const res = await fetch(`${API_BASE}${path}`, {
         method: options.method || "GET",
         headers: {
@@ -293,6 +294,9 @@
       });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       apiOnline = true;
+      if (method !== "GET" && method !== "HEAD" && typeof window.diatechNotifyDataChanged === "function") {
+        window.diatechNotifyDataChanged("inventory");
+      }
       if (res.status === 204) return null;
       return await res.json();
     } catch (e) {

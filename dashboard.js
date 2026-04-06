@@ -37,8 +37,6 @@ function getSafeTickets() {
   return Array.isArray(DB?.tickets) ? DB.tickets : [];
 }
 
-const DASHBOARD_INVENTORY_KEY = 'nexusops_inventory_v2';
-const DASHBOARD_CONSUMABLES_KEY = 'cmd_consumables_v1';
 const DASHBOARD_API_BASE = (() => {
   const fromWindow = typeof window !== 'undefined' ? String(window.__API_BASE__ || '').trim() : '';
   const fromStorage = typeof localStorage !== 'undefined' ? String(localStorage.getItem('ti_api_base') || '').trim() : '';
@@ -92,25 +90,47 @@ async function pullDashboardStatsFromApi(force = false) {
   }
 }
 
-function hydrateDashboardLiveDataFromStorage() {
+async function hydrateDashboardFromApi() {
   try {
-    const invRaw = localStorage.getItem(DASHBOARD_INVENTORY_KEY);
-    if (invRaw) {
-      const invParsed = JSON.parse(invRaw);
-      if (Array.isArray(invParsed)) DB.inventory = invParsed;
-    }
-  } catch (e) {
-    console.warn('Dashboard inventory hydrate failed', e);
+    const res = await fetch(`${DASHBOARD_API_BASE}/app-data`);
+    if (!res.ok) return false;
+    const payload = await res.json();
+    if (!payload || typeof payload !== 'object') return false;
+    if (Array.isArray(payload.tickets)) DB.tickets = payload.tickets;
+    if (Array.isArray(payload.inventory)) DB.inventory = payload.inventory;
+    if (Array.isArray(payload.consumables)) DB.consumables = payload.consumables;
+    if (Array.isArray(payload.consumableLogs)) DB.consumableLogs = payload.consumableLogs;
+    if (Array.isArray(payload.departments)) DB.departments = payload.departments;
+    if (Array.isArray(payload.devices)) DB.devices = payload.devices;
+    if (Array.isArray(payload.expenses)) DB.expenses = payload.expenses;
+    if (payload.expenseMonthlyBudget != null) DB.expenseMonthlyBudget = Number(payload.expenseMonthlyBudget) || 0;
+    if (payload.alertRules && typeof payload.alertRules === 'object') DB.alertRules = payload.alertRules;
+    if (Array.isArray(payload.slaPolicies)) DB.slaPolicies = payload.slaPolicies;
+    return true;
+  } catch (_e) {
+    return false;
   }
-  try {
-    const consRaw = localStorage.getItem(DASHBOARD_CONSUMABLES_KEY);
-    if (consRaw) {
-      const consParsed = JSON.parse(consRaw);
-      if (Array.isArray(consParsed)) DB.consumables = consParsed;
-    }
-  } catch (e) {
-    console.warn('Dashboard consumables hydrate failed', e);
-  }
+}
+
+let dashboardFullRefreshTimer = null;
+function scheduleDashboardFullRefresh() {
+  if (dashboardFullRefreshTimer) clearTimeout(dashboardFullRefreshTimer);
+  dashboardFullRefreshTimer = setTimeout(() => {
+    dashboardFullRefreshTimer = null;
+    void (async () => {
+      try {
+        await hydrateDashboardFromApi();
+        rerenderCharts();
+        await pullDashboardStatsFromApi(true);
+      } catch (_e) {
+        try {
+          rerenderCharts();
+        } catch (e2) {
+          console.error('Dashboard error:', e2);
+        }
+      }
+    })();
+  }, 250);
 }
 
 function computeInventoryStats() {
@@ -198,7 +218,6 @@ window.getDashboardStats = getDashboardStats;
 
 function renderUnifiedKpis() {
   const stats = getDashboardStats();
-  console.log('Dashboard stats:', stats);
   const elOpen = document.getElementById('kpi-open-tickets');
   const elPending = document.getElementById('kpi-pending-tickets');
   const elOverdue = document.getElementById('kpi-overdue-tickets');
@@ -212,9 +231,6 @@ function renderUnifiedKpis() {
   if (elCritical) elCritical.textContent = String(stats.criticalDevices ?? 0);
   if (elReplacement) elReplacement.textContent = String(stats.replacementSoon ?? 0);
 }
-
-console.log('Inventory:', DB.inventory);
-console.log('Consumables:', DB.consumables);
 
 /* ---- KPI Counter Animation ---- */
 document.querySelectorAll('.kpi-value[data-target]').forEach(el => {
@@ -243,11 +259,17 @@ function techAvatar(assignedUserId) {
   return `<div class="assignee-cell"><div class="tech-avatar" style="background:${u.avatarColor}" title="${u.name}">${u.initials}</div><span class="assignee-name">${u.name}</span></div>`;
 }
 
-/* ---- Critical Tickets Table ---- */
-const critBody = document.getElementById('critical-tickets-body');
-if (critBody) {
-  const critTickets = getSafeTickets().filter(t => t.slaClass === 'breach' || t.priority === 'critical').slice(0, 5);
-  critBody.innerHTML = critTickets.map(t => `
+window.assignTicket = function(id, btn) {
+  btn.textContent = 'Assigned ✓';
+  btn.style.background = '#10b981';
+  btn.disabled = true;
+};
+
+function renderDashboardSidePanels() {
+  const critBody = document.getElementById('critical-tickets-body');
+  if (critBody) {
+    const critTickets = getSafeTickets().filter(t => t.slaClass === 'breach' || t.priority === 'critical').slice(0, 5);
+    critBody.innerHTML = critTickets.map(t => `
     <tr>
       <td><span class="ticket-id">#${t.id}</span> <span class="ticket-name">${t.title}</span></td>
       <td>${techAvatar(t.assignedUserId)}</td>
@@ -255,13 +277,12 @@ if (critBody) {
       <td>${slaBadge(t.sla, t.slaClass)}</td>
     </tr>
   `).join('');
-}
+  }
 
-/* ---- Unassigned Tickets Table ---- */
-const unassignedBody = document.getElementById('unassigned-body');
-if (unassignedBody) {
-  const unassigned = getSafeTickets().filter(t => !t.assignedUserId);
-  unassignedBody.innerHTML = unassigned.map(t => `
+  const unassignedBody = document.getElementById('unassigned-body');
+  if (unassignedBody) {
+    const unassigned = getSafeTickets().filter(t => !t.assignedUserId);
+    unassignedBody.innerHTML = unassigned.map(t => `
     <tr>
       <td><span class="ticket-id">#${t.id}</span></td>
       <td class="ticket-name">${t.title}</td>
@@ -270,18 +291,11 @@ if (unassignedBody) {
       <td><button class="assign-btn" onclick="assignTicket(${t.id}, this)">Assign</button></td>
     </tr>
   `).join('');
-}
+  }
 
-window.assignTicket = function(id, btn) {
-  btn.textContent = 'Assigned ✓';
-  btn.style.background = '#10b981';
-  btn.disabled = true;
-};
-
-/* ---- Department Alerts ---- */
-const deptAlertsList = document.getElementById('department-alerts-list');
-if (deptAlertsList && Array.isArray(DB?.departments)) {
-  deptAlertsList.innerHTML = DB.departments.map(d => `
+  const deptAlertsList = document.getElementById('department-alerts-list');
+  if (deptAlertsList && Array.isArray(DB?.departments)) {
+    deptAlertsList.innerHTML = DB.departments.map(d => `
     <div class="cust-row">
       <span class="cust-name">${d.name}</span>
       ${[
@@ -291,17 +305,17 @@ if (deptAlertsList && Array.isArray(DB?.departments)) {
       ].map((a, i) => `<span class="alert-pill p${i+1}">${a}</span>`).join('')}
     </div>
   `).join('');
-}
+  }
 
-/* ---- Department Tickets ---- */
-const deptTicketsList = document.getElementById('department-tickets-list');
-if (deptTicketsList && Array.isArray(DB?.departments)) {
-  deptTicketsList.innerHTML = DB.departments.map(d => `
+  const deptTicketsList = document.getElementById('department-tickets-list');
+  if (deptTicketsList && Array.isArray(DB?.departments)) {
+    deptTicketsList.innerHTML = DB.departments.map(d => `
     <div class="ct-row">
       <span class="ct-name">${d.name}</span>
       <span class="ct-count">${d.tickets}</span>
     </div>
   `).join('');
+  }
 }
 
 /* ---- Charts & analytics ---- */
@@ -908,9 +922,9 @@ function rerenderAnalytics() {
 }
 
 function rerenderCharts() {
-  hydrateDashboardLiveDataFromStorage();
   renderUnifiedKpis();
   void pullDashboardStatsFromApi();
+  renderDashboardSidePanels();
   rerenderAnalytics();
   buildAlertDonut();
   buildOsChart();
@@ -923,29 +937,29 @@ try {
   console.error('Dashboard error:', e);
 }
 
-window.addEventListener('storage', () => {
+void (async () => {
   try {
+    await hydrateDashboardFromApi();
     rerenderCharts();
+    await pullDashboardStatsFromApi(true);
   } catch (e) {
     console.error('Dashboard error:', e);
   }
+})();
+
+window.addEventListener('diatech:data-changed', () => scheduleDashboardFullRefresh());
+
+window.addEventListener('storage', () => {
+  scheduleDashboardFullRefresh();
 });
 
 window.addEventListener('focus', () => {
-  try {
-    rerenderCharts();
-  } catch (e) {
-    console.error('Dashboard error:', e);
-  }
+  scheduleDashboardFullRefresh();
 });
 
 document.addEventListener('visibilitychange', () => {
   if (document.visibilityState !== 'visible') return;
-  try {
-    rerenderCharts();
-  } catch (e) {
-    console.error('Dashboard error:', e);
-  }
+  scheduleDashboardFullRefresh();
 });
 
 document.querySelectorAll('.chip[data-analytics-range]').forEach((btn) => {
