@@ -277,6 +277,14 @@ function syncTicketsState(list) {
   DB.tickets = ticketsStore;
 }
 
+function apiErrorUserMessage(res, fallbackLabel) {
+  if (res.status === 0) return 'Network error — check your connection and API URL.';
+  const d = res.data;
+  const apiMsg = d && (d.message || (typeof d.error === 'string' ? d.error : null));
+  if (typeof apiMsg === 'string' && apiMsg.trim()) return apiMsg.trim();
+  return `${fallbackLabel} (HTTP ${res.status}).`;
+}
+
 async function hydrateTicketsFromApi() {
   if (typeof ApiClient === 'undefined') return;
   const localTickets = Array.isArray(DB.tickets) ? DB.tickets.slice() : [];
@@ -500,10 +508,7 @@ window.saveEditTicket = async function() {
     const res = await ApiClient.upsertTicketWithResult(t);
     if (!res.ok) {
       Object.assign(t, prev);
-      errEl.textContent =
-        res.status === 0
-          ? 'Network error — check your connection and API URL.'
-          : `Save failed (HTTP ${res.status}).`;
+      errEl.textContent = apiErrorUserMessage(res, 'Save failed');
       return;
     }
   } else if (typeof ApiClient !== 'undefined') {
@@ -540,12 +545,7 @@ window.submitNewTicket = async function() {
   if (typeof ApiClient !== 'undefined' && ApiClient.upsertTicketWithResult) {
     const res = await ApiClient.upsertTicketWithResult(newTicket);
     if (!res.ok) {
-      if (errEl) {
-        errEl.textContent =
-          res.status === 0
-            ? 'Network error — check your connection and API URL.'
-            : `Create failed (HTTP ${res.status}).`;
-      }
+      if (errEl) errEl.textContent = apiErrorUserMessage(res, 'Create failed');
       return;
     }
   } else if (typeof ApiClient !== 'undefined') {

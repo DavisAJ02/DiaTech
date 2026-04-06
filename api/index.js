@@ -74,9 +74,26 @@ function sanitizeDb(parsed) {
     devices: Array.isArray(parsed.devices) ? parsed.devices : [],
     expenses: Array.isArray(parsed.expenses) ? parsed.expenses : [],
     expenseMonthlyBudget: Number(parsed.expenseMonthlyBudget) || 0,
-    alertRules: parsed.alertRules && typeof parsed.alertRules === "object" ? parsed.alertRules : {},
+    alertRules:
+      parsed.alertRules && typeof parsed.alertRules === "object" && !Array.isArray(parsed.alertRules)
+        ? parsed.alertRules
+        : {},
     slaPolicies: Array.isArray(parsed.slaPolicies) ? parsed.slaPolicies : [],
   };
+}
+
+/** Deep JSON-safe value for jsonb (no undefined, no Date/BigInt loss). */
+function cloneJsonbValue(key, v) {
+  try {
+    return JSON.parse(
+      JSON.stringify(v, (_prop, val) => {
+        if (typeof val === "bigint") return Number(val);
+        return val;
+      })
+    );
+  } catch (e) {
+    throw new Error(`app_state key "${key}" is not JSON-serializable: ${e?.message || e}`);
+  }
 }
 
 async function readDbFromSupabase() {
@@ -99,9 +116,21 @@ async function readDbFromSupabase() {
 async function writeDbToSupabase(db) {
   const client = getSupabase();
   if (!client) return false;
-  const rows = DATA_KEYS.map((key) => ({ key, value: db[key] }));
-  const { error } = await client.from(APP_STATE_TABLE).upsert(rows, { onConflict: "key" });
-  if (error) throw error;
+  const normalized = sanitizeDb(db);
+  const rows = DATA_KEYS.map((key) => ({ key, value: cloneJsonbValue(key, normalized[key]) }));
+
+  let { error } = await client.from(APP_STATE_TABLE).upsert(rows, { onConflict: "key" });
+  if (!error) return true;
+
+  console.warn("Bulk app_state upsert failed, retrying per-key:", error.message || error);
+
+  for (const row of rows) {
+    const r = await client.from(APP_STATE_TABLE).upsert([row], { onConflict: "key" });
+    if (r.error) {
+      const msg = [r.error.message, r.error.details, r.error.hint].filter(Boolean).join(" | ");
+      throw new Error(`Supabase app_state["${row.key}"]: ${msg || JSON.stringify(r.error)}`);
+    }
+  }
   return true;
 }
 
@@ -171,16 +200,17 @@ async function readDb() {
 }
 
 async function writeDb(data) {
+  const db = sanitizeDb(data);
   if (hasSupabaseConfig()) {
     try {
-      await writeDbToSupabase(data);
+      await writeDbToSupabase(db);
       return;
     } catch (e) {
       console.error("Supabase write failed:", e?.message || e);
       throw e;
     }
   }
-  await writeDbToFile(data);
+  await writeDbToFile(db);
 }
 
 function safeId(v) {
