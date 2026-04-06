@@ -1,6 +1,12 @@
 /**
  * DiaTech — rôles profil (admin | agent | user) pour le rendu UI.
  * S’appuie sur getPrimaryProfileRole() (data.js) et window.currentUserRole.
+ *
+ * Matrice navigation (fichiers .html) :
+ * - admin : tout
+ * - agent : index, tickets, devices uniquement
+ * - user : tout sauf inventory, it-analytics, settings
+ * (Aligné avec userCanAccessPage dans data.js.)
  */
 (function (global) {
   function syncCurrentUserRole() {

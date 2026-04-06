@@ -184,6 +184,8 @@
     }
 
     document.querySelectorAll('.auth-logout-btn').forEach((btn) => {
+      if (btn.dataset.diatechAuthBound === '1') return;
+      btn.dataset.diatechAuthBound = '1';
       btn.addEventListener('click', (e) => {
         e.preventDefault();
         void logout();

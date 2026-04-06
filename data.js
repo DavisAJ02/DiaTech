@@ -664,9 +664,28 @@ function getEffectiveAllowedPages(user) {
 const PRIMARY_PROFILE_ROLES = new Set(["admin", "agent", "user"]);
 
 /**
- * Rôle applicatif unique pour RBAC UI / routes (Supabase profiles.role ou compte démo).
+ * Rôle applicatif unique pour RBAC UI / routes.
+ * Avec Supabase : uniquement `profiles.role` (session / window), jamais les rôles seed dans DB.users
+ * (ceux-ci servent seulement au profil affiché / assignation quand l’e-mail correspond).
  */
 function getPrimaryProfileRole() {
+  const supabaseAuthed =
+    DB.session &&
+    DB.session.authProvider === "supabase" &&
+    DB.session.isAuthenticated;
+
+  if (supabaseAuthed) {
+    if (DB.session.profileRole) {
+      const r = String(DB.session.profileRole).toLowerCase();
+      if (PRIMARY_PROFILE_ROLES.has(r)) return r;
+    }
+    if (typeof window !== "undefined" && window.currentUserRole) {
+      const r = String(window.currentUserRole).toLowerCase();
+      if (PRIMARY_PROFILE_ROLES.has(r)) return r;
+    }
+    return "user";
+  }
+
   if (DB.session && DB.session.profileRole) {
     const r = String(DB.session.profileRole).toLowerCase();
     if (PRIMARY_PROFILE_ROLES.has(r)) return r;

@@ -104,6 +104,16 @@ export async function hydrateFromSupabase() {
   } catch (_e) {
     /* ignore */
   }
+
+  // Sidebar / nav : après hydratation, ré-appliquer les droits (souvent après le 1er enhanceUI ou avant le DOM).
+  const runEnhance = () => {
+    try {
+      if (typeof Auth !== "undefined" && typeof Auth.enhanceUI === "function") Auth.enhanceUI();
+    } catch (_e) {
+      /* ignore */
+    }
+  };
+  requestAnimationFrame(() => requestAnimationFrame(runEnhance));
 }
 
 export async function signInWithSupabase(email, password) {
