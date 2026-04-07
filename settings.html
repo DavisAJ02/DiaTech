@@ -77,7 +77,9 @@
 <script src="role-ui.js"></script>
 <script src="auth.js"></script>
 <script src="api-client.js"></script>
-<script>void Auth.guard().catch(function (e) { console.error(e); });</script>
+<script>
+window.__diatechAuthGuardPromise = Auth.guard().catch(function (e) { console.error(e); });
+</script>
 <aside class="sidebar">
   <div class="sidebar-logo">
     <span class="logo-mark">
@@ -176,9 +178,17 @@
           <div class="form-group">
             <div class="users-admin-head">
               <h3>Team accounts</h3>
-              <button type="button" class="btn-primary" id="btn-create-agent">Create agent</button>
+              <button type="button" class="btn-primary" id="btn-create-agent">Create user</button>
             </div>
-            <p class="ue-hint" style="margin-bottom:14px">Create agent logins, limit which modules they see, and toggle capabilities (assignee, exports, department management). Changes are stored in this browser only.</p>
+            <p id="users-admin-hint" class="ue-hint" style="margin-bottom:14px">Create agent logins, limit which modules they see, and toggle capabilities (assignee, exports, department management). Changes are stored in this browser only.</p>
+            <details class="ue-hint" style="margin-bottom:14px;max-width:720px">
+              <summary style="cursor:pointer;font-weight:600">Recommandations Pro (état)</summary>
+              <ul style="margin:10px 0 0 18px;line-height:1.5;font-size:12px">
+                <li><strong>Actif dans le code :</strong> journal <code>dia_admin_audit</code> + <code>GET /api/admin/audit</code>, invitations <code>inviteUserByEmail</code> (<code>DIATECH_INVITE_REDIRECT_URL</code>), politique mot de passe admin (<code>DIATECH_MIN_ADMIN_PASSWORD_LENGTH</code>, défaut 12), filtrage tickets <code>/api/tickets-rls</code> par <code>app_access.allowedDepartmentNames</code>, MFA TOTP (<code>mfa-verify.html</code> / <code>mfa-enroll.html</code>, option <code>requireAdminMfa</code> dans <code>env-public.js</code>).</li>
+                <li><strong>À configurer dans Supabase :</strong> Authentication → Policies (longueur MDP globale, rate limit), activer le fournisseur MFA ; URL de redirection du site autorisée pour les invitations.</li>
+                <li>Exécuter <code>supabase/schema_profiles_app_access.sql</code> et <code>schema_admin_audit.sql</code> si ce n’est pas déjà fait.</li>
+              </ul>
+            </details>
             <div class="users-table-wrap">
               <table class="users-table">
                 <thead>
@@ -186,7 +196,7 @@
                     <th>User</th>
                     <th>Role</th>
                     <th>Status</th>
-                    <th>Modules</th>
+                    <th>Access</th>
                     <th>Capabilities</th>
                     <th></th>
                   </tr>
@@ -194,13 +204,37 @@
                 <tbody id="users-admin-body"></tbody>
               </table>
             </div>
+            <div id="admin-audit-wrap" class="form-group" style="margin-top:18px;padding-top:18px;border-top:1px solid var(--border-subtle);display:none">
+              <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:10px">
+                <h4 style="font-size:14px;margin:0">Audit administrateur</h4>
+                <button type="button" class="btn-secondary" id="btn-audit-refresh" style="font-size:12px;padding:6px 12px">Actualiser</button>
+              </div>
+              <p class="ue-hint" style="margin-bottom:10px">Dernières entrées (création, invitation, modification, suppression de comptes).</p>
+              <div class="users-table-wrap">
+                <table class="users-table" style="font-size:12px">
+                  <thead>
+                    <tr>
+                      <th>Date</th>
+                      <th>Action</th>
+                      <th>Cible</th>
+                      <th>Détail</th>
+                    </tr>
+                  </thead>
+                  <tbody id="admin-audit-body"></tbody>
+                </table>
+              </div>
+            </div>
           </div>
         </div>
         <!-- Security -->
         <div class="settings-section" id="section-security">
           <div class="form-group">
             <h3>Security Settings</h3>
-            <div class="toggle-row"><div><div class="toggle-label">Two-Factor Authentication</div><div class="toggle-sub">Require 2FA for all logins</div></div><label class="toggle"><input type="checkbox" checked/><span class="toggle-slider"></span></label></div>
+            <p class="ue-hint" style="margin-bottom:14px;line-height:1.5">
+              MFA TOTP : après connexion, les admins peuvent être redirigés vers <a href="mfa-enroll.html">mfa-enroll.html</a> si <code>requireAdminMfa</code> est activé dans <code>env-public.js</code>.
+              Activez aussi MFA dans le projet Supabase (Authentication) pour appliquer AAL2 après mot de passe.
+            </p>
+            <div class="toggle-row"><div><div class="toggle-label">Two-Factor Authentication (cible produit)</div><div class="toggle-sub">À renforcer via Supabase Auth + pages MFA DiaTech</div></div><label class="toggle"><input type="checkbox" checked disabled/><span class="toggle-slider"></span></label></div>
             <div class="toggle-row"><div><div class="toggle-label">Session Timeout</div><div class="toggle-sub">Auto-logout after 30 minutes of inactivity</div></div><label class="toggle"><input type="checkbox" checked/><span class="toggle-slider"></span></label></div>
             <div style="margin-top:16px">
               <div class="form-field"><label>Change Password</label><input type="password" placeholder="New password"/></div>
@@ -259,8 +293,21 @@
     <div class="ue-row"><label for="ue-username">Username</label><input type="text" id="ue-username" autocomplete="username"/></div>
     <div class="ue-row"><label for="ue-email">Email</label><input type="email" id="ue-email" autocomplete="email"/></div>
     <div class="ue-row"><label for="ue-name">Display name</label><input type="text" id="ue-name" autocomplete="name"/></div>
+    <div class="ue-row" id="ue-invite-row" style="display:none;flex-direction:column;gap:8px">
+      <label class="ue-page-item" style="margin:0">
+        <input type="checkbox" id="ue-invite-email" checked/>
+        <span>Envoyer une invitation par e-mail (lien) au lieu de définir un mot de passe</span>
+      </label>
+    </div>
+    <div class="ue-row" id="ue-password-row" style="display:none;flex-direction:column">
+      <label for="ue-password">Mot de passe initial (serveur : min. 12 car., lettre + chiffre par défaut)</label>
+      <input type="password" id="ue-password" autocomplete="new-password"/>
+    </div>
+    <div class="ue-row" id="ue-reset-password-row" style="display:none;flex-direction:column">
+      <label for="ue-new-password">New password (optional)</label><input type="password" id="ue-new-password" autocomplete="new-password"/>
+    </div>
     <p class="ue-hint" style="margin:0 0 12px;font-size:12px;line-height:1.45">
-      L’authentification est gérée par Supabase (mots de passe et création de comptes dans le tableau de bord Supabase ou votre processus TI).
+      Avec Supabase, les comptes sont créés ici (API admin) ou depuis le dashboard Supabase. Les droits modules / départements sont stockés dans <code>public.profiles.app_access</code>.
     </p>
     <div class="toggle-row">
       <div><div class="toggle-label">Account active</div><div class="toggle-sub">Inactive users cannot sign in</div></div>
@@ -284,6 +331,12 @@
         <label class="ue-page-item"><input type="checkbox" id="ue-page-it-analytics-html" checked/><span>IT Analytics</span></label>
       </div>
       <p class="ue-hint">Leave all checked for default agent access. Uncheck to restrict; Dashboard always stays available.</p>
+    </div>
+    <div class="ue-row" id="ue-departments-scope-box">
+      <label>Department scope</label>
+      <label class="ue-page-item" style="margin-bottom:8px"><input type="checkbox" id="ue-departments-all" checked/><span>All departments</span></label>
+      <div class="ue-pages-grid" id="ue-departments-grid"></div>
+      <p class="ue-hint">Uncheck “All departments” to limit ticket visibility by service (client-side helper <code>userMaySeeDepartment</code>).</p>
     </div>
     <div class="form-group" style="padding:16px;margin-bottom:0;box-shadow:none">
       <h3 style="font-size:14px;margin-bottom:12px">Capabilities</h3>
@@ -496,7 +549,14 @@ document.getElementById('btn-sla-save')?.addEventListener('click', async () => {
 renderSlaPolicies();
 void hydrateSlaPoliciesFromApi().then(() => renderSlaPolicies());
 Auth.enhanceUI();
-if (typeof UsersAdmin !== "undefined" && UsersAdmin.init) UsersAdmin.init();
+void window.__diatechAuthGuardPromise
+  .then(function () {
+    if (typeof UsersAdmin !== "undefined" && UsersAdmin.init) return UsersAdmin.init();
+  })
+  .then(function () {
+    Auth.enhanceUI();
+  })
+  .catch(function () {});
 </script>
 </body>
 </html>

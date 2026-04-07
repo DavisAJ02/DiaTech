@@ -199,6 +199,19 @@
     deleteTicketRls: (id) =>
       requestWithResultAuth(`/tickets-rls/${encodeURIComponent(String(id))}`, { method: "DELETE" }),
 
+    adminListUsers: () => requestWithResultAuth("/admin/users"),
+    adminCreateUser: (body) =>
+      requestWithResultAuth("/admin/users", { method: "POST", body: JSON.stringify(body || {}) }),
+    adminPatchUser: (id, body) =>
+      requestWithResultAuth(`/admin/users/${encodeURIComponent(String(id))}`, {
+        method: "PATCH",
+        body: JSON.stringify(body || {}),
+      }),
+    adminDeleteUser: (id) =>
+      requestWithResultAuth(`/admin/users/${encodeURIComponent(String(id))}`, { method: "DELETE" }),
+    adminListAudit: (limit) =>
+      requestWithResultAuth("/admin/audit?limit=" + encodeURIComponent(String(limit || 50))),
+
     getDepartments: () => request("/departments"),
     upsertDepartment: (department) => request("/departments", { method: "POST", body: JSON.stringify(department || {}) }),
     deleteDepartment: (name) => request(`/departments/${encodeURIComponent(String(name))}`, { method: "DELETE" }),

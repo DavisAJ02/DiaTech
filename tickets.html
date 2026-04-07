@@ -458,12 +458,16 @@ function departmentCell(dept) {
 
 function renderTickets() {
   const tickets = ticketsStore;
+  const scoped =
+    typeof userMaySeeDepartment === 'function'
+      ? tickets.filter((t) => userMaySeeDepartment(t.department))
+      : tickets;
   const search = document.getElementById('ticket-search').value.toLowerCase();
   const pFilter = document.getElementById('filter-priority').value;
   const sFilter = document.getElementById('filter-sla').value;
   const deptFilter = document.getElementById('filter-department')?.value || '';
 
-  let filtered = tickets.filter(t => {
+  let filtered = scoped.filter(t => {
     const slaMeta = ticketSlaMeta(t);
     if (currentTab === 'open' && String(t.status || '').toLowerCase() !== 'open') return false;
     if (currentTab === 'in-progress' && String(t.status || '').toLowerCase() !== 'in-progress') return false;
@@ -492,11 +496,11 @@ function renderTickets() {
     </tr>
   `).join('');
 
-  document.getElementById('cnt-all').textContent = tickets.length;
-  document.getElementById('cnt-open').textContent = tickets.filter(t => String(t.status || '').toLowerCase() === 'open').length;
-  document.getElementById('cnt-in-progress').textContent = tickets.filter(t => String(t.status || '').toLowerCase() === 'in-progress').length;
-  document.getElementById('cnt-critical').textContent = tickets.filter(t=>t.priority==='critical').length;
-  document.getElementById('cnt-unassigned').textContent = tickets.filter(t=>!t.assignedUserId).length;
+  document.getElementById('cnt-all').textContent = scoped.length;
+  document.getElementById('cnt-open').textContent = scoped.filter(t => String(t.status || '').toLowerCase() === 'open').length;
+  document.getElementById('cnt-in-progress').textContent = scoped.filter(t => String(t.status || '').toLowerCase() === 'in-progress').length;
+  document.getElementById('cnt-critical').textContent = scoped.filter(t=>t.priority==='critical').length;
+  document.getElementById('cnt-unassigned').textContent = scoped.filter(t=>!t.assignedUserId).length;
 }
 
 document.querySelectorAll('.tab').forEach(btn => {

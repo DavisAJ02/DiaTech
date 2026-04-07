@@ -13,7 +13,7 @@ export function isSupabaseConfigured() {
   );
 }
 
-function getClient() {
+export function getClient() {
   const p = window.__DIATECH_PUBLIC__;
   return createClient(String(p.supabaseUrl).trim(), String(p.supabaseAnonKey).trim(), {
     auth: {
@@ -38,6 +38,8 @@ function clearSupabaseSessionFields() {
   DB.session.supabaseUserId = null;
   DB.session.supabaseEmail = null;
   DB.session.supabaseDisplayName = null;
+  DB.session.profileActive = true;
+  DB.session.profileAppAccess = null;
   DB.session.isAuthenticated = false;
   DB.session.currentUserId = null;
 }
@@ -61,18 +63,69 @@ export async function hydrateFromSupabase() {
   const uid = session.user.id;
   const email = (session.user.email || "").trim();
 
-  const { data: profile, error: profileError } = await supabase
+  let profile = null;
+  let profileError = null;
+  const full = await supabase
     .from("profiles")
-    .select("role")
+    .select("role,active,display_name,app_access")
     .eq("id", uid)
     .maybeSingle();
+  if (full.error) {
+    profileError = full.error;
+    const minimal = await supabase.from("profiles").select("role").eq("id", uid).maybeSingle();
+    if (minimal.error) {
+      console.warn("[DiaTech] profiles read:", profileError.message);
+    } else {
+      profile = minimal.data;
+      console.warn(
+        "[DiaTech] profiles: run schema_profiles_app_access.sql for full access control (active, app_access)."
+      );
+    }
+  } else {
+    profile = full.data;
+  }
 
-  if (profileError) {
-    console.warn("[DiaTech] profiles read:", profileError.message);
+  if (profile && profile.active === false) {
+    await supabase.auth.signOut();
+    clearSupabaseSessionFields();
+    window.currentUserRole = undefined;
+    return;
   }
 
   const role = normalizeProfileRole(profile?.role);
   window.currentUserRole = role;
+
+  const { data: aalGate, error: aalGateErr } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
+  if (!aalGateErr && aalGate?.currentLevel === "aal1" && aalGate?.nextLevel === "aal2") {
+    const page = (window.location.pathname || "").split("/").pop().toLowerCase();
+    if (page !== "mfa-verify.html" && page !== "login.html") {
+      window.location.replace(
+        "mfa-verify.html?return=" + encodeURIComponent(page || "index.html")
+      );
+      return;
+    }
+  }
+
+  if (role === "admin" && window.__DIATECH_PUBLIC__?.requireAdminMfa) {
+    try {
+      const { data: fd, error: fdErr } = await supabase.auth.mfa.listFactors();
+      if (!fdErr && fd?.all) {
+        const verified = fd.all.filter((f) => f.status === "verified");
+        if (verified.length === 0) {
+          const page = (window.location.pathname || "").split("/").pop().toLowerCase();
+          const allow = ["mfa-enroll.html", "mfa-verify.html", "login.html"];
+          if (!allow.includes(page)) {
+            window.location.replace(
+              "mfa-enroll.html?return=" + encodeURIComponent(page || "index.html")
+            );
+            return;
+          }
+        }
+      }
+    } catch (_e) {
+      /* MFA non disponible côté projet — ne pas bloquer */
+    }
+  }
 
   const emailLower = email.toLowerCase();
   const linked =
@@ -92,7 +145,13 @@ export async function hydrateFromSupabase() {
   DB.session.profileRole = role;
   DB.session.supabaseUserId = uid;
   DB.session.supabaseEmail = email;
+  DB.session.profileActive = profile?.active !== false;
+  DB.session.profileAppAccess =
+    profile?.app_access && typeof profile.app_access === "object" && !Array.isArray(profile.app_access)
+      ? profile.app_access
+      : null;
   DB.session.supabaseDisplayName =
+    (profile?.display_name && String(profile.display_name).trim()) ||
     session.user.user_metadata?.full_name ||
     session.user.user_metadata?.name ||
     email.split("@")[0] ||
@@ -122,6 +181,10 @@ export async function signInWithSupabase(email, password) {
   window.__diaTechSupabaseClient = supabase;
   const { error } = await supabase.auth.signInWithPassword({ email, password });
   if (error) return { ok: false, error: error.message };
+  const { data: aalData, error: aalErr } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
+  if (!aalErr && aalData?.currentLevel === "aal1" && aalData?.nextLevel === "aal2") {
+    return { ok: true, needsMfaChallenge: true };
+  }
   await hydrateFromSupabase();
   return { ok: true };
 }

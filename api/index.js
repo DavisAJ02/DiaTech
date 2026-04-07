@@ -1,5 +1,6 @@
 const express = require("express");
 const cors = require("cors");
+const crypto = require("crypto");
 const fs = require("fs");
 const path = require("path");
 const { createClient } = require("@supabase/supabase-js");
@@ -23,14 +24,84 @@ const DATA_KEYS = [
 
 let supabase = null;
 
-app.use(cors({ origin: true, credentials: false }));
-app.use(express.json({ limit: "1mb" }));
-
 function envTrim(name) {
   const v = process.env[name];
   if (v == null) return "";
   return String(v).replace(/\r/g, "").trim();
 }
+
+function timingSafeEqualStr(a, b) {
+  try {
+    const bufA = Buffer.from(String(a), "utf8");
+    const bufB = Buffer.from(String(b), "utf8");
+    if (bufA.length !== bufB.length) return false;
+    return crypto.timingSafeEqual(bufA, bufB);
+  } catch {
+    return false;
+  }
+}
+
+function truthyEnv(name) {
+  const v = envTrim(name).toLowerCase();
+  return v === "1" || v === "true" || v === "yes";
+}
+
+/** Bloque POST/PUT/DELETE /api/tickets* (hors tickets-rls) — recommandé en prod avec RLS. */
+function blockLegacyTicketWrites() {
+  return truthyEnv("DIATECH_BLOCK_LEGACY_TICKET_WRITES");
+}
+
+/**
+ * Étape 1 sécurité : mutations legacy (app_state / JSON) hors /api/tickets-rls.
+ * - Si DIATECH_BLOCK_LEGACY_TICKET_WRITES=1 : 403 sur écritures tickets legacy.
+ * - Si DIATECH_LEGACY_WRITE_KEY est défini : header X-DiaTech-Write-Key requis sur toutes les autres mutations /api listées (sauf tickets-rls).
+ * Si la clé est vide : pas de contrôle (compat local / SPA statique).
+ */
+function requireLegacyWriteAuth(req, res, next) {
+  const m = req.method;
+  if (m !== "POST" && m !== "PUT" && m !== "DELETE") return next();
+
+  let pathname = req.path || "";
+  if (!pathname && req.url) {
+    try {
+      pathname = new URL(req.url, "http://localhost").pathname;
+    } catch {
+      pathname = "";
+    }
+  }
+  pathname = String(pathname).split("?")[0];
+
+  if (!pathname.startsWith("/api/")) return next();
+  if (pathname.startsWith("/api/tickets-rls")) return next();
+  if (pathname.startsWith("/api/admin")) return next();
+
+  const isLegacyTicketWrite =
+    (m === "POST" && pathname === "/api/tickets") ||
+    ((m === "PUT" || m === "DELETE") && /^\/api\/tickets\/[^/]+$/.test(pathname));
+
+  if (isLegacyTicketWrite && blockLegacyTicketWrites()) {
+    return res.status(403).json({
+      error: "legacy_ticket_writes_disabled",
+      detail: "Use POST /api/tickets-rls with a Supabase session.",
+    });
+  }
+
+  const key = envTrim("DIATECH_LEGACY_WRITE_KEY");
+  if (!key) return next();
+
+  const provided = String(req.get("x-diatech-write-key") || "").trim();
+  if (!timingSafeEqualStr(key, provided)) {
+    return res.status(403).json({
+      error: "legacy_write_forbidden",
+      detail: "Missing or invalid X-DiaTech-Write-Key (or leave DIATECH_LEGACY_WRITE_KEY unset for open local writes).",
+    });
+  }
+  next();
+}
+
+app.use(cors({ origin: true, credentials: false }));
+app.use(express.json({ limit: "1mb" }));
+app.use(requireLegacyWriteAuth);
 
 function emptyDb() {
   return {
@@ -123,6 +194,213 @@ async function fetchProfileRole(serviceClient, userId) {
   const r = String(data?.role || "").toLowerCase();
   if (r === "admin" || r === "agent" || r === "user") return r;
   return "user";
+}
+
+function parseBearerToken(req) {
+  const auth = req.get("authorization") || "";
+  const m = auth.match(/^Bearer\s+(\S+)/i);
+  return m ? m[1].trim() : "";
+}
+
+function normalizeRoleBody(r) {
+  const x = String(r || "").toLowerCase();
+  if (x === "admin" || x === "agent" || x === "user") return x;
+  return null;
+}
+
+function defaultAppAccess() {
+  return {
+    restrictions: {
+      canBeAssignee: true,
+      canExportReports: true,
+      canManageDepartments: true,
+    },
+    allowedPages: null,
+    allowedDepartmentNames: null,
+  };
+}
+
+function mergeAppAccess(existing, patch) {
+  const base =
+    existing && typeof existing === "object" && !Array.isArray(existing)
+      ? JSON.parse(JSON.stringify(existing))
+      : defaultAppAccess();
+  if (patch && typeof patch === "object") {
+    if (patch.restrictions && typeof patch.restrictions === "object") {
+      base.restrictions = { ...base.restrictions, ...patch.restrictions };
+    }
+    if ("allowedPages" in patch) {
+      base.allowedPages =
+        patch.allowedPages === null || patch.allowedPages === undefined
+          ? null
+          : Array.isArray(patch.allowedPages)
+            ? patch.allowedPages.map((x) => String(x))
+            : base.allowedPages;
+    }
+    if ("allowedDepartmentNames" in patch) {
+      base.allowedDepartmentNames =
+        patch.allowedDepartmentNames === null || patch.allowedDepartmentNames === undefined
+          ? null
+          : Array.isArray(patch.allowedDepartmentNames)
+            ? patch.allowedDepartmentNames.map((x) => String(x))
+            : base.allowedDepartmentNames;
+    }
+  }
+  return base;
+}
+
+async function resolveAdminContext(req, res) {
+  const jwt = parseBearerToken(req);
+  if (!jwt) {
+    res.status(401).json({ error: "missing_bearer" });
+    return null;
+  }
+  const svc = getSupabaseServiceOnly();
+  if (!svc) {
+    res.status(503).json({ error: "supabase_service_role_missing" });
+    return null;
+  }
+  const { data: userData, error: guErr } = await svc.auth.getUser(jwt);
+  if (guErr || !userData?.user) {
+    res.status(401).json({ error: "invalid_token", detail: guErr?.message || "" });
+    return null;
+  }
+  const userId = userData.user.id;
+  const role = await fetchProfileRole(svc, userId);
+  if (role !== "admin") {
+    res.status(403).json({ error: "admin_required" });
+    return null;
+  }
+  return { svc, userId, jwt, authUser: userData.user };
+}
+
+async function fetchProfileRow(svc, userId) {
+  const { data, error } = await svc
+    .from("profiles")
+    .select("id,role,active,display_name,app_access,updated_at")
+    .eq("id", userId)
+    .maybeSingle();
+  if (error) return null;
+  return data;
+}
+
+function publicUserFromAuthAndProfile(u, profile) {
+  const p = profile || { role: "user", active: true, app_access: {} };
+  const role = normalizeRoleBody(p.role) || "user";
+  const appAccess =
+    p.app_access && typeof p.app_access === "object" && !Array.isArray(p.app_access)
+      ? p.app_access
+      : {};
+  return {
+    id: u.id,
+    email: u.email || "",
+    role,
+    active: p.active !== false,
+    display_name:
+      p.display_name ||
+      (u.user_metadata && (u.user_metadata.full_name || u.user_metadata.name)) ||
+      "",
+    created_at: u.created_at,
+    app_access: {
+      restrictions: {
+        canBeAssignee: appAccess.restrictions?.canBeAssignee !== false,
+        canExportReports: appAccess.restrictions?.canExportReports !== false,
+        canManageDepartments: appAccess.restrictions?.canManageDepartments !== false,
+      },
+      allowedPages: appAccess.allowedPages === undefined ? null : appAccess.allowedPages,
+      allowedDepartmentNames:
+        appAccess.allowedDepartmentNames === undefined ? null : appAccess.allowedDepartmentNames,
+    },
+  };
+}
+
+async function insertAdminAudit(svc, actorId, action, targetId, payload) {
+  if (!svc || !actorId) return;
+  try {
+    const { error } = await svc.from("dia_admin_audit").insert({
+      actor_id: actorId,
+      action,
+      target_id: targetId || null,
+      payload: payload && typeof payload === "object" ? payload : {},
+    });
+    if (error) console.warn("[dia_admin_audit]", error.message);
+  } catch (e) {
+    console.warn("[dia_admin_audit]", e?.message || e);
+  }
+}
+
+function envMinAdminPasswordLength() {
+  const n = Number(envTrim("DIATECH_MIN_ADMIN_PASSWORD_LENGTH"));
+  if (Number.isFinite(n) && n >= 8) return Math.min(n, 128);
+  return 12;
+}
+
+function validateAdminCreatedPassword(pw) {
+  const min = envMinAdminPasswordLength();
+  const s = String(pw || "");
+  if (s.length < min) return { ok: false, error: "password_min_length", min };
+  if (!/[a-zA-Z]/.test(s)) return { ok: false, error: "password_need_letter" };
+  if (!/[0-9]/.test(s)) return { ok: false, error: "password_need_digit" };
+  return { ok: true };
+}
+
+function ticketPayloadDepartment(payload) {
+  const p = payload && typeof payload === "object" ? payload : {};
+  return String(p.department || "").trim();
+}
+
+function departmentScopeIsUnrestricted(profileRow, role) {
+  if (role === "admin") return true;
+  const names = profileRow?.app_access?.allowedDepartmentNames;
+  if (names === null || names === undefined) return true;
+  return false;
+}
+
+function profileAllowsDepartmentAccess(profileRow, role, deptName) {
+  if (role === "admin") return true;
+  const names = profileRow?.app_access?.allowedDepartmentNames;
+  if (names === null || names === undefined) return true;
+  if (!Array.isArray(names) || names.length === 0) return false;
+  const d = String(deptName || "").trim().toLowerCase();
+  if (!d) return false;
+  return names.some((n) => String(n).trim().toLowerCase() === d);
+}
+
+async function resolveTicketsRlsContext(req, res) {
+  const authHeader = req.headers.authorization;
+  if (!authHeader || !String(authHeader).toLowerCase().startsWith("bearer ")) {
+    res.status(401).json({ error: "missing_bearer" });
+    return null;
+  }
+  const token = String(authHeader).replace(/^Bearer\s+/i, "").trim();
+  const userClient = createUserScopedSupabaseClient(authHeader);
+  if (!userClient) {
+    res.status(503).json({ error: "tickets_rls_misconfigured", detail: "SUPABASE_URL + SUPABASE_ANON_KEY" });
+    return null;
+  }
+  const url = envTrim("SUPABASE_URL");
+  const anon = getSupabaseAnonKey();
+  if (!url || !anon) {
+    res.status(503).json({ error: "tickets_rls_misconfigured", detail: "SUPABASE_URL + SUPABASE_ANON_KEY" });
+    return null;
+  }
+  const anonAuth = createClient(url, anon, {
+    auth: { persistSession: false, autoRefreshToken: false },
+  });
+  const { data: userData, error: authErr } = await anonAuth.auth.getUser(token);
+  if (authErr || !userData?.user) {
+    res.status(401).json({ error: "invalid_token" });
+    return null;
+  }
+  const uid = userData.user.id;
+  const svc = getSupabaseServiceOnly();
+  let profileRow = null;
+  let profileRole = "user";
+  if (svc) {
+    profileRole = (await fetchProfileRole(svc, uid)) || "user";
+    profileRow = await fetchProfileRow(svc, uid);
+  }
+  return { userClient, uid, token, svc, profileRow, profileRole };
 }
 
 function profileMayAssignTickets(role) {
@@ -376,6 +654,236 @@ function computeStats(db) {
   };
 }
 
+/** CRUD comptes + accès (JWT admin + service_role). Nécessite colonnes profiles.active, display_name, app_access. */
+app.get("/api/admin/users", async (req, res) => {
+  const ctx = await resolveAdminContext(req, res);
+  if (!ctx) return;
+  const { svc } = ctx;
+  const perPage = Math.min(Number(req.query.perPage) || 200, 500);
+  const { data: listData, error: lErr } = await svc.auth.admin.listUsers({ page: 1, perPage });
+  if (lErr) {
+    return res.status(500).json({ error: "list_users_failed", detail: lErr.message });
+  }
+  const users = listData?.users || [];
+  const ids = users.map((u) => u.id);
+  let byId = new Map();
+  if (ids.length) {
+    const { data: profiles, error: pErr } = await svc
+      .from("profiles")
+      .select("id,role,active,display_name,app_access")
+      .in("id", ids);
+    if (pErr) {
+      return res.status(500).json({ error: "profiles_fetch_failed", detail: pErr.message });
+    }
+    byId = new Map((profiles || []).map((p) => [p.id, p]));
+  }
+  const out = users.map((u) => publicUserFromAuthAndProfile(u, byId.get(u.id)));
+  res.json({ users: out });
+});
+
+app.post("/api/admin/users", async (req, res) => {
+  const ctx = await resolveAdminContext(req, res);
+  if (!ctx) return;
+  const body = req.body || {};
+  const email = String(body.email || "").trim().toLowerCase();
+  const role = normalizeRoleBody(body.role) || "agent";
+  const displayName = String(body.display_name || "").trim();
+  const invite = body.invite === true || body.invite === "true";
+  const redirectTo = envTrim("DIATECH_INVITE_REDIRECT_URL") || undefined;
+
+  if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    return res.status(400).json({ error: "invalid_email" });
+  }
+
+  const appAccess = mergeAppAccess(null, body.app_access || {});
+  let uid;
+  let authUser;
+
+  if (invite) {
+    const { data: invData, error: iErr } = await ctx.svc.auth.admin.inviteUserByEmail(email, {
+      data: displayName ? { full_name: displayName, name: displayName } : {},
+      redirectTo: redirectTo || undefined,
+    });
+    if (iErr || !invData?.user) {
+      return res.status(400).json({ error: "invite_failed", detail: iErr?.message || "" });
+    }
+    uid = invData.user.id;
+    authUser = invData.user;
+  } else {
+    const password = String(body.password || "");
+    const pv = validateAdminCreatedPassword(password);
+    if (!pv.ok) {
+      return res.status(400).json(pv);
+    }
+    const { data: createdData, error: cErr } = await ctx.svc.auth.admin.createUser({
+      email,
+      password,
+      email_confirm: true,
+      user_metadata: displayName ? { full_name: displayName, name: displayName } : {},
+    });
+    if (cErr || !createdData?.user) {
+      return res.status(400).json({ error: "create_failed", detail: cErr?.message || "" });
+    }
+    uid = createdData.user.id;
+    authUser = createdData.user;
+  }
+
+  const { error: upErr } = await ctx.svc.from("profiles").upsert(
+    {
+      id: uid,
+      role,
+      active: body.active !== false,
+      display_name: displayName || null,
+      app_access: appAccess,
+    },
+    { onConflict: "id" }
+  );
+  if (upErr) {
+    await ctx.svc.auth.admin.deleteUser(uid).catch(() => {});
+    return res.status(500).json({ error: "profile_upsert_failed", detail: upErr.message });
+  }
+
+  await insertAdminAudit(ctx.svc, ctx.userId, invite ? "user_invite" : "user_create", uid, {
+    email,
+    role,
+    invite,
+  });
+
+  const row = await fetchProfileRow(ctx.svc, uid);
+  res.status(201).json({ user: publicUserFromAuthAndProfile(authUser, row) });
+});
+
+app.patch("/api/admin/users/:id", async (req, res) => {
+  const ctx = await resolveAdminContext(req, res);
+  if (!ctx) return;
+  const targetId = String(req.params.id || "").trim();
+  if (!targetId) return res.status(400).json({ error: "invalid_id" });
+  const body = req.body || {};
+  const { svc, userId: adminId } = ctx;
+
+  const { data: authUserRow, error: gErr } = await svc.auth.admin.getUserById(targetId);
+  if (gErr || !authUserRow?.user) {
+    return res.status(404).json({ error: "user_not_found" });
+  }
+  const existingProf = await fetchProfileRow(svc, targetId);
+  const prevRole = await fetchProfileRole(svc, targetId);
+  const isSelf = targetId === adminId;
+
+  if (isSelf && body.active === false) {
+    return res.status(400).json({ error: "cannot_deactivate_self" });
+  }
+
+  const newRole = body.role != null ? normalizeRoleBody(body.role) : null;
+  if (isSelf && newRole && newRole !== "admin") {
+    const { data: adm } = await svc.from("profiles").select("id").eq("role", "admin").eq("active", true);
+    const others = (adm || []).filter((r) => r.id !== adminId);
+    if (others.length === 0) {
+      return res.status(400).json({ error: "last_admin" });
+    }
+  }
+
+  if (newRole && newRole !== "admin" && prevRole === "admin") {
+    const { data: adm } = await svc.from("profiles").select("id").eq("role", "admin").eq("active", true);
+    const others = (adm || []).filter((r) => r.id !== targetId);
+    if (others.length === 0) {
+      return res.status(400).json({ error: "last_admin" });
+    }
+  }
+
+  const authPatch = {};
+  if (body.email) {
+    const em = String(body.email).trim().toLowerCase();
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(em)) {
+      return res.status(400).json({ error: "invalid_email" });
+    }
+    authPatch.email = em;
+  }
+  if (body.password && String(body.password).length > 0) {
+    const pv = validateAdminCreatedPassword(body.password);
+    if (!pv.ok) return res.status(400).json(pv);
+    authPatch.password = String(body.password);
+  }
+  if (body.display_name != null) {
+    const dn = String(body.display_name).trim();
+    const meta = { ...(authUserRow.user.user_metadata || {}) };
+    if (dn) {
+      meta.full_name = dn;
+      meta.name = dn;
+    }
+    authPatch.user_metadata = meta;
+  }
+  if (Object.keys(authPatch).length) {
+    const { error: auErr } = await svc.auth.admin.updateUserById(targetId, authPatch);
+    if (auErr) return res.status(400).json({ error: "auth_update_failed", detail: auErr.message });
+  }
+
+  const profPatch = {};
+  if (newRole) profPatch.role = newRole;
+  if (body.active !== undefined) profPatch.active = Boolean(body.active);
+  if (body.display_name !== undefined) profPatch.display_name = String(body.display_name).trim() || null;
+  if (body.app_access) {
+    const cur = existingProf?.app_access || {};
+    profPatch.app_access = mergeAppAccess(cur, body.app_access);
+  }
+  if (Object.keys(profPatch).length) {
+    profPatch.id = targetId;
+    if (!existingProf && !profPatch.role) profPatch.role = newRole || "user";
+    const { error: pe } = await svc.from("profiles").upsert(profPatch, { onConflict: "id" });
+    if (pe) return res.status(500).json({ error: "profile_update_failed", detail: pe.message });
+  }
+
+  const { data: u2 } = await svc.auth.admin.getUserById(targetId);
+  const prof2 = await fetchProfileRow(svc, targetId);
+
+  const hadAuthChange = Object.keys(authPatch).length > 0;
+  const hadProfChange = Object.keys(profPatch).length > 0;
+  if (hadAuthChange || hadProfChange) {
+    await insertAdminAudit(svc, adminId, "user_patch", targetId, {
+      role: newRole || undefined,
+      active: body.active !== undefined ? Boolean(body.active) : undefined,
+      email_changed: Boolean(body.email),
+      password_reset: Boolean(body.password && String(body.password).length > 0),
+      app_access_changed: Boolean(body.app_access),
+    });
+  }
+
+  res.json({ user: publicUserFromAuthAndProfile(u2?.user || authUserRow.user, prof2) });
+});
+
+app.get("/api/admin/audit", async (req, res) => {
+  const ctx = await resolveAdminContext(req, res);
+  if (!ctx) return;
+  const limit = Math.min(Number(req.query.limit) || 50, 200);
+  const { data, error } = await ctx.svc
+    .from("dia_admin_audit")
+    .select("id,actor_id,action,target_id,payload,created_at")
+    .order("created_at", { ascending: false })
+    .limit(limit);
+  if (error) return res.status(500).json({ error: error.message });
+  res.json({ entries: data || [] });
+});
+
+app.delete("/api/admin/users/:id", async (req, res) => {
+  const ctx = await resolveAdminContext(req, res);
+  if (!ctx) return;
+  const targetId = String(req.params.id || "").trim();
+  if (targetId === ctx.userId) {
+    return res.status(400).json({ error: "cannot_delete_self" });
+  }
+  const prevRole = await fetchProfileRole(ctx.svc, targetId);
+  if (prevRole === "admin") {
+    const { data: adm } = await ctx.svc.from("profiles").select("id").eq("role", "admin").eq("active", true);
+    const others = (adm || []).filter((r) => r.id !== targetId);
+    if (others.length === 0) {
+      return res.status(400).json({ error: "last_admin" });
+    }
+  }
+  const { error } = await ctx.svc.auth.admin.deleteUser(targetId);
+  if (error) return res.status(400).json({ error: "delete_failed", detail: error.message });
+  await insertAdminAudit(ctx.svc, ctx.userId, "user_delete", targetId, {});
+  res.status(204).end();
+});
+
 app.get("/api/health", (_req, res) => {
   res.json({
     ok: true,
@@ -548,52 +1056,33 @@ app.get("/api/dashboard/stats", async (_req, res) => {
 
 /** Tickets avec RLS Supabase (JWT utilisateur → politiques sur public.dia_tickets). */
 app.get("/api/tickets-rls", async (req, res) => {
-  const authHeader = req.headers.authorization;
-  if (!authHeader || !String(authHeader).toLowerCase().startsWith("bearer ")) {
-    return res.status(401).json({ error: "missing_bearer" });
-  }
-  const userClient = createUserScopedSupabaseClient(authHeader);
-  if (!userClient) {
-    return res.status(503).json({ error: "tickets_rls_misconfigured", detail: "SUPABASE_URL + SUPABASE_ANON_KEY" });
-  }
+  const ctx = await resolveTicketsRlsContext(req, res);
+  if (!ctx) return;
+  const { userClient, profileRow, profileRole } = ctx;
   const { data, error } = await userClient
     .from("dia_tickets")
     .select("id,payload,created_by,assigned_to")
     .order("id", { ascending: true });
   if (error) return res.status(400).json({ error: error.message, code: error.code });
-  res.json((data || []).map(diaTicketRowToAppTicket));
+  let rows = data || [];
+  if (profileRole !== "admin" && !departmentScopeIsUnrestricted(profileRow, profileRole)) {
+    rows = rows.filter((r) =>
+      profileAllowsDepartmentAccess(profileRow, profileRole, ticketPayloadDepartment(r.payload))
+    );
+  }
+  res.json(rows.map(diaTicketRowToAppTicket));
 });
 
 app.post("/api/tickets-rls", async (req, res) => {
-  const authHeader = req.headers.authorization;
-  if (!authHeader || !String(authHeader).toLowerCase().startsWith("bearer ")) {
-    return res.status(401).json({ error: "missing_bearer" });
-  }
-  const token = String(authHeader).replace(/^Bearer\s+/i, "").trim();
-  const url = envTrim("SUPABASE_URL");
-  const anon = getSupabaseAnonKey();
-  if (!url || !anon) {
-    return res.status(503).json({ error: "tickets_rls_misconfigured", detail: "SUPABASE_URL + SUPABASE_ANON_KEY" });
-  }
-
-  const anonAuth = createClient(url, anon, {
-    auth: { persistSession: false, autoRefreshToken: false },
-  });
-  const { data: userData, error: authErr } = await anonAuth.auth.getUser(token);
-  if (authErr || !userData?.user) {
-    return res.status(401).json({ error: "invalid_token" });
-  }
-  const uid = userData.user.id;
-
-  const svc = getSupabaseServiceOnly();
-  const profileRole = svc ? await fetchProfileRole(svc, uid) : null;
+  const tctx = await resolveTicketsRlsContext(req, res);
+  if (!tctx) return;
+  const { userClient, uid, svc, profileRow, profileRole } = tctx;
   const mayAssign = profileMayAssignTickets(profileRole);
 
   const body = req.body || {};
   const id = Number(body.id);
   if (!Number.isFinite(id)) return res.status(400).json({ error: "id required (number)" });
 
-  const userClient = createUserScopedSupabaseClient(authHeader);
   const { data: existing, error: exErr } = await userClient
     .from("dia_tickets")
     .select("id,payload,created_by,assigned_to")
@@ -604,6 +1093,23 @@ app.post("/api/tickets-rls", async (req, res) => {
   const base = existing?.payload && typeof existing.payload === "object" ? { ...existing.payload } : {};
   const merged = { ...base, ...stripTicketTransportFields(body) };
   merged.id = id;
+
+  const deptMerged = ticketPayloadDepartment(merged);
+  if (!profileAllowsDepartmentAccess(profileRow, profileRole, deptMerged)) {
+    return res.status(403).json({
+      error: "department_forbidden",
+      detail: "This ticket department is outside your allowed scope.",
+    });
+  }
+  if (existing) {
+    const deptOld = ticketPayloadDepartment(base);
+    if (!profileAllowsDepartmentAccess(profileRow, profileRole, deptOld)) {
+      return res.status(403).json({
+        error: "department_forbidden",
+        detail: "You cannot modify this ticket (department scope).",
+      });
+    }
+  }
 
   let created_by = existing ? existing.created_by : uid;
   let assigned_to = existing ? existing.assigned_to : null;
@@ -675,16 +1181,23 @@ app.post("/api/tickets-rls", async (req, res) => {
 });
 
 app.delete("/api/tickets-rls/:id", async (req, res) => {
-  const authHeader = req.headers.authorization;
-  if (!authHeader || !String(authHeader).toLowerCase().startsWith("bearer ")) {
-    return res.status(401).json({ error: "missing_bearer" });
-  }
-  const userClient = createUserScopedSupabaseClient(authHeader);
-  if (!userClient) {
-    return res.status(503).json({ error: "tickets_rls_misconfigured" });
-  }
+  const tctx = await resolveTicketsRlsContext(req, res);
+  if (!tctx) return;
+  const { userClient, profileRow, profileRole } = tctx;
   const id = Number(req.params.id);
   if (!Number.isFinite(id)) return res.status(400).json({ error: "invalid id" });
+  const { data: exRow, error: exErr } = await userClient
+    .from("dia_tickets")
+    .select("id,payload")
+    .eq("id", id)
+    .maybeSingle();
+  if (exErr) return res.status(400).json({ error: exErr.message });
+  if (exRow && !profileAllowsDepartmentAccess(profileRow, profileRole, ticketPayloadDepartment(exRow.payload))) {
+    return res.status(403).json({
+      error: "department_forbidden",
+      detail: "You cannot delete this ticket (department scope).",
+    });
+  }
   const { error } = await userClient.from("dia_tickets").delete().eq("id", id);
   if (error) return res.status(400).json({ error: error.message, code: error.code });
   await syncAppStateTicketsFromDiaIfEnabled();

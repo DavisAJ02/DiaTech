@@ -43,6 +43,15 @@
 
   function navFileVisibleForRole(file, role) {
     if (role === "admin") return true;
+    if (typeof global.getEffectiveAllowedPages === "function" && typeof global.Auth !== "undefined") {
+      const u = Auth.currentUser();
+      if (u) {
+        const eff = getEffectiveAllowedPages(u);
+        if (eff === null) return true;
+        const fl = String(file).toLowerCase();
+        return eff.some((x) => String(x).toLowerCase() === fl);
+      }
+    }
     if (role === "agent") {
       return ["index.html", "tickets.html", "devices.html"].includes(file);
     }
@@ -68,7 +77,19 @@
   function canAssignTickets() {
     syncCurrentUserRole();
     const r = global.currentUserRole;
-    return r === "admin" || r === "agent";
+    if (!(r === "admin" || r === "agent")) return false;
+    if (
+      typeof global.DB !== "undefined" &&
+      DB.session &&
+      DB.session.profileAppAccess &&
+      DB.session.profileAppAccess.restrictions &&
+      DB.session.profileAppAccess.restrictions.canBeAssignee === false
+    ) {
+      return false;
+    }
+    const u = typeof global.Auth !== "undefined" ? Auth.currentUser() : null;
+    if (u && u.restrictions && u.restrictions.canBeAssignee === false) return false;
+    return true;
   }
 
   function canUpdateTicketStatus() {

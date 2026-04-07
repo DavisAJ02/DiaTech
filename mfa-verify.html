@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>DiaTech – Vérification MFA</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body class="login-page" style="justify-content:center;padding:24px">
+  <div class="form-group" style="max-width:400px;width:100%;margin:0 auto">
+    <h1 style="font-family:var(--font-head);font-size:1.25rem;margin-bottom:8px">Second facteur</h1>
+    <p class="ue-hint" style="margin-bottom:16px;line-height:1.5">
+      Saisissez le code à 6 chiffres de votre application d’authentification (TOTP).
+    </p>
+    <div class="form-field">
+      <label for="mfa-code">Code</label>
+      <input id="mfa-code" type="text" inputmode="numeric" autocomplete="one-time-code" maxlength="8" placeholder="000000" />
+    </div>
+    <p id="mfa-err" class="ue-hint" style="color:var(--accent);min-height:20px"></p>
+    <button type="button" class="btn-primary" id="mfa-submit" style="width:100%;margin-top:8px">Valider</button>
+    <p style="margin-top:16px;font-size:12px">
+      <a href="login.html">← Retour connexion</a>
+    </p>
+  </div>
+  <script src="data.js"></script>
+  <script src="env-public.js"></script>
+  <script src="auth.js"></script>
+  <script>
+    void Auth.guard().catch(function (e) { console.error(e); });
+  </script>
+  <script type="module">
+    import { getClient, hydrateFromSupabase } from "./supabase-session.mjs";
+
+    const errEl = document.getElementById("mfa-err");
+    const input = document.getElementById("mfa-code");
+    const btn = document.getElementById("mfa-submit");
+    const q = new URLSearchParams(window.location.search);
+    const ret = q.get("return");
+    const safeReturn =
+      ret && /^[a-z0-9._-]+\.html$/i.test(ret) && ret.toLowerCase() !== "login.html" ? ret : "index.html";
+
+    async function run() {
+      const supabase = getClient();
+      window.__diaTechSupabaseClient = supabase;
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+      if (!session) {
+        window.location.replace("login.html");
+        return;
+      }
+      const { data: fac, error: lfErr } = await supabase.auth.mfa.listFactors();
+      if (lfErr) {
+        errEl.textContent = lfErr.message;
+        return;
+      }
+      const totpVerified = (fac?.totp || []).filter((f) => f.status === "verified");
+      if (totpVerified.length === 0) {
+        errEl.textContent = "Aucun facteur TOTP vérifié. Configurez MFA depuis votre profil ou contactez un admin.";
+        return;
+      }
+      const factorId = totpVerified[0].id;
+      const code = String(input.value || "").replace(/\s/g, "");
+      if (code.length < 6) {
+        errEl.textContent = "Entrez le code à 6 chiffres.";
+        return;
+      }
+      errEl.textContent = "";
+      btn.disabled = true;
+      const { error } = await supabase.auth.mfa.challengeAndVerify({ factorId, code });
+      btn.disabled = false;
+      if (error) {
+        errEl.textContent = error.message || "Code invalide.";
+        return;
+      }
+      await hydrateFromSupabase();
+      window.location.replace(safeReturn);
+    }
+
+    btn.addEventListener("click", () => void run());
+    input.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") void run();
+    });
+  </script>
+</body>
+</html>

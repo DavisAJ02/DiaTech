@@ -743,6 +743,12 @@
             ret && /^[a-z0-9._-]+\.html$/i.test(ret) && ret.toLowerCase() !== 'login.html'
               ? ret
               : 'index.html';
+          if (sup.needsMfaChallenge) {
+            window.location.replace(
+              'mfa-verify.html?return=' + encodeURIComponent(path)
+            );
+            return;
+          }
           window.location.replace(path);
           return;
         }

@@ -121,6 +121,13 @@
       return;
     }
 
+    if (path === 'mfa-enroll.html' || path === 'mfa-verify.html') {
+      if (!authed) {
+        window.location.replace('login.html?return=' + encodeURIComponent(pageName()));
+      }
+      return;
+    }
+
     if (!authed) {
       window.location.replace('login.html?return=' + encodeURIComponent(pageName()));
       return;
@@ -146,7 +153,8 @@
   }
 
   function enhanceUI() {
-    if (pageName().toLowerCase() === 'login.html') return;
+    const pn = pageName().toLowerCase();
+    if (pn === 'login.html' || pn === 'mfa-verify.html' || pn === 'mfa-enroll.html') return;
 
     const u = currentUser();
     if (!u) return;

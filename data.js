@@ -321,6 +321,10 @@ const DB = {
     supabaseUserId: null,
     supabaseEmail: null,
     supabaseDisplayName: null,
+    /** Compte actif (public.profiles.active) */
+    profileActive: true,
+    /** restrictions, allowedPages, allowedDepartmentNames (profil Supabase) */
+    profileAppAccess: null,
   },
 };
 
@@ -718,16 +722,11 @@ function getPrimaryProfileRole() {
 
 function userCanAccessPage(filename, user) {
   if (!user || !user.active) return false;
-  const pr = getPrimaryProfileRole();
-  if (pr === "admin") return true;
+  if (getPrimaryProfileRole() === "admin") return true;
   const f = String(filename).toLowerCase();
-  if (pr === "agent") {
-    return new Set(["index.html", "tickets.html", "devices.html"]).has(f);
-  }
-  if (pr === "user") {
-    return !PROFILE_USER_EXCLUDED_PAGES.includes(f);
-  }
-  return false;
+  const eff = getEffectiveAllowedPages(user);
+  if (eff === null) return true;
+  return eff.some((x) => String(x).toLowerCase() === f);
 }
 
 function getUserById(userId) {
@@ -744,6 +743,18 @@ function getAssignableUsers() {
     .sort((a, b) => a.id - b.id);
 }
 
+/** Périmètre départements (profil). null = tous. */
+function userMaySeeDepartment(departmentName) {
+  if (getPrimaryProfileRole() === "admin") return true;
+  const u = typeof getCurrentUser === "function" ? getCurrentUser() : null;
+  if (!u || !u.active) return false;
+  const scope = u.allowedDepartmentNames;
+  if (scope == null) return true;
+  if (!Array.isArray(scope) || scope.length === 0) return false;
+  const d = String(departmentName || "").toLowerCase();
+  return scope.some((n) => String(n).toLowerCase() === d);
+}
+
 /** In-memory session; rempli par Supabase (supabase-session.mjs) et auth.js à la déconnexion */
 function profileRoleToAppRoles(profileRole) {
   const r = String(profileRole || "user").toLowerCase();
@@ -755,6 +766,7 @@ function profileRoleToAppRoles(profileRole) {
 
 function getSupabaseSyntheticUser() {
   const r = DB.session.profileRole || window.currentUserRole || "user";
+  const acc = DB.session.profileAppAccess || {};
   const name = DB.session.supabaseDisplayName || DB.session.supabaseEmail || "Utilisateur";
   const ini = String(name)
     .split(/\s+/)
@@ -770,8 +782,12 @@ function getSupabaseSyntheticUser() {
     initials: ini,
     avatarColor: "#64748b",
     roles: profileRoleToAppRoles(r),
-    active: true,
+    active: DB.session.profileActive !== false,
     authProvider: "supabase",
+    allowedPages: acc.allowedPages === undefined ? null : acc.allowedPages,
+    allowedDepartmentNames:
+      acc.allowedDepartmentNames === undefined ? null : acc.allowedDepartmentNames,
+    restrictions: acc.restrictions && typeof acc.restrictions === "object" ? { ...acc.restrictions } : {},
   };
 }
 
@@ -786,7 +802,17 @@ function getCurrentUser() {
     const u = getUserById(uid);
     if (!u) return null;
     if (DB.session.authProvider === "supabase" && DB.session.profileRole) {
-      return { ...u, roles: profileRoleToAppRoles(DB.session.profileRole) };
+      const acc = DB.session.profileAppAccess || {};
+      const merged = { ...u, roles: profileRoleToAppRoles(DB.session.profileRole) };
+      if (acc.allowedPages !== undefined) merged.allowedPages = acc.allowedPages;
+      if (acc.restrictions && typeof acc.restrictions === "object") {
+        merged.restrictions = { ...(u.restrictions || {}), ...acc.restrictions };
+      }
+      if (acc.allowedDepartmentNames !== undefined) {
+        merged.allowedDepartmentNames = acc.allowedDepartmentNames;
+      }
+      if (DB.session.profileActive === false) merged.active = false;
+      return merged;
     }
     return u;
   }
@@ -804,5 +830,7 @@ function clearSession() {
   DB.session.supabaseUserId = null;
   DB.session.supabaseEmail = null;
   DB.session.supabaseDisplayName = null;
+  DB.session.profileActive = true;
+  DB.session.profileAppAccess = null;
 }
 

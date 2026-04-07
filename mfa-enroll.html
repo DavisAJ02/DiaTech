@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>DiaTech – Activer MFA</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body class="login-page" style="justify-content:center;padding:24px">
+  <div class="form-group" style="max-width:420px;width:100%;margin:0 auto">
+    <h1 style="font-family:var(--font-head);font-size:1.25rem;margin-bottom:8px">Authentification à deux facteurs</h1>
+    <p class="ue-hint" style="margin-bottom:16px;line-height:1.5">
+      Obligatoire pour les administrateurs (paramètre <code>requireAdminMfa</code>). Scannez le QR avec Google Authenticator, Microsoft Authenticator ou équivalent, puis validez avec un code.
+    </p>
+    <div id="mfa-qr-host" style="margin:16px 0;text-align:center;min-height:120px"></div>
+    <div class="form-field">
+      <label for="mfa-enroll-code">Code de vérification</label>
+      <input id="mfa-enroll-code" type="text" inputmode="numeric" maxlength="8" placeholder="000000" />
+    </div>
+    <p id="mfa-enroll-err" class="ue-hint" style="color:var(--accent);min-height:20px"></p>
+    <button type="button" class="btn-primary" id="mfa-enroll-start" style="width:100%;margin-bottom:8px">Générer le QR code</button>
+    <button type="button" class="btn-secondary" id="mfa-enroll-verify" style="width:100%" disabled>Activer MFA</button>
+    <p style="margin-top:16px;font-size:12px">
+      <a href="login.html">Déconnexion</a>
+    </p>
+  </div>
+  <script src="data.js"></script>
+  <script src="env-public.js"></script>
+  <script src="auth.js"></script>
+  <script>
+    void Auth.guard().catch(function (e) { console.error(e); });
+  </script>
+  <script type="module">
+    import { getClient, hydrateFromSupabase } from "./supabase-session.mjs";
+
+    const errEl = document.getElementById("mfa-enroll-err");
+    const qrHost = document.getElementById("mfa-qr-host");
+    const input = document.getElementById("mfa-enroll-code");
+    const btnStart = document.getElementById("mfa-enroll-start");
+    const btnVerify = document.getElementById("mfa-enroll-verify");
+    const q = new URLSearchParams(window.location.search);
+    const ret = q.get("return");
+    const safeReturn =
+      ret && /^[a-z0-9._-]+\.html$/i.test(ret) && ret.toLowerCase() !== "login.html" ? ret : "index.html";
+
+    let factorId = null;
+
+    btnStart.addEventListener("click", async () => {
+      errEl.textContent = "";
+      const supabase = getClient();
+      window.__diaTechSupabaseClient = supabase;
+      const { data, error } = await supabase.auth.mfa.enroll({ factorType: "totp" });
+      if (error || !data?.id) {
+        errEl.textContent = error?.message || "Échec d’inscription MFA.";
+        return;
+      }
+      factorId = data.id;
+      const svg = data.totp?.qr_code;
+      if (svg) {
+        qrHost.innerHTML = svg;
+      } else {
+        qrHost.textContent = data.totp?.uri || "QR indisponible — saisissez la clé manuellement dans l’app.";
+      }
+      btnVerify.disabled = false;
+    });
+
+    btnVerify.addEventListener("click", async () => {
+      if (!factorId) return;
+      const code = String(input.value || "").replace(/\s/g, "");
+      if (code.length < 6) {
+        errEl.textContent = "Code requis.";
+        return;
+      }
+      errEl.textContent = "";
+      const supabase = getClient();
+      const { error } = await supabase.auth.mfa.challengeAndVerify({ factorId, code });
+      if (error) {
+        errEl.textContent = error.message || "Code invalide.";
+        return;
+      }
+      await hydrateFromSupabase();
+      window.location.replace(safeReturn);
+    });
+  </script>
+</body>
+</html>

@@ -9,6 +9,8 @@ window.__DIATECH_PUBLIC__ = Object.assign(
   {
     supabaseUrl: "https://ungcuuhewgqiamecetxx.supabase.co",
     supabaseAnonKey: "sb_publishable_FAl1LiH0ksVeFYTF9tt9PQ_qYh-r6a6",
+    /** Si true : les comptes admin doivent enregistrer au moins un facteur MFA (TOTP) avant d’accéder à l’app. */
+    requireAdminMfa: false,
   },
   window.__DIATECH_PUBLIC__ || {}
 );

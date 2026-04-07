@@ -98,6 +98,21 @@ drop policy if exists profiles_update_own on public.profiles;
 
 comment on table public.profiles is 'Profil app : rôle RBAC (admin | agent | user), lié à auth.users';
 
+alter table public.profiles add column if not exists active boolean not null default true;
+alter table public.profiles add column if not exists display_name text;
+alter table public.profiles add column if not exists app_access jsonb not null default '{}'::jsonb;
+
+create table if not exists public.dia_admin_audit (
+  id bigserial primary key,
+  actor_id uuid not null references auth.users (id),
+  action text not null,
+  target_id uuid,
+  payload jsonb not null default '{}'::jsonb,
+  created_at timestamptz not null default now()
+);
+create index if not exists dia_admin_audit_created_at_idx on public.dia_admin_audit (created_at desc);
+alter table public.dia_admin_audit enable row level security;
+
 -- ═══════════════════════════════════════════════════════════════════════════
 -- 3) schema_profiles_backfill.sql — profils pour auth.users déjà existants
 -- ═══════════════════════════════════════════════════════════════════════════
