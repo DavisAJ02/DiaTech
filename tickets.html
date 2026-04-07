@@ -226,6 +226,23 @@
       <label for="et-status">Status</label>
       <select id="et-status"></select>
     </div>
+    <div class="form-row" id="et-satisfaction-readonly" style="display:none;">
+      <label>Satisfaction (requester)</label>
+      <div id="et-satisfaction-readonly-body" style="font-size:13px;line-height:1.45;color:var(--text);"></div>
+    </div>
+    <div class="form-row" id="et-satisfaction-row" style="display:none;">
+      <label for="et-satisfaction-rating">Satisfaction — required to close</label>
+      <select id="et-satisfaction-rating">
+        <option value="">Select 1–5…</option>
+        <option value="5">5 — Excellent</option>
+        <option value="4">4 — Good</option>
+        <option value="3">3 — OK</option>
+        <option value="2">2 — Poor</option>
+        <option value="1">1 — Very poor</option>
+      </select>
+      <label for="et-satisfaction-comment" style="margin-top:8px;">Comment (optional)</label>
+      <textarea id="et-satisfaction-comment" rows="2" placeholder="Optional feedback…"></textarea>
+    </div>
     <div class="form-row" id="et-department-row">
       <label for="et-department">Department</label>
       <select id="et-department">
@@ -316,6 +333,28 @@ function fillEditStatusSelectForOpenTicket(t) {
     .join('');
   const allowed = new Set(opts.map((o) => o.value));
   el.value = allowed.has(norm) ? norm : opts[0].value;
+}
+
+function updateSatisfactionRowVisibility(t) {
+  const row = document.getElementById('et-satisfaction-row');
+  const ro = document.getElementById('et-satisfaction-readonly');
+  const roBody = document.getElementById('et-satisfaction-readonly-body');
+  if (!row || !t) return;
+  const userRole = typeof RoleUi !== 'undefined' && RoleUi.isUser && RoleUi.isUser();
+  const stVal = document.getElementById('et-status')?.value;
+  const ticketWasResolved = twNorm(t.status) === 'resolved';
+  const showPicker = userRole && ticketWasResolved && stVal === 'closed';
+  row.style.display = showPicker ? 'flex' : 'none';
+  row.hidden = !showPicker;
+  if (ro && roBody) {
+    const r = Number(t.satisfactionRating);
+    const has = Number.isFinite(r) && r >= 1 && r <= 5;
+    const showRo = has && twNorm(t.status) === 'closed';
+    ro.style.display = showRo ? 'flex' : 'none';
+    ro.hidden = !showRo;
+    const c = String(t.satisfactionComment || '').trim();
+    roBody.textContent = c ? `${r}/5 — ${c}` : `${r}/5`;
+  }
 }
 
 function renderEditModalComments(t) {
@@ -651,6 +690,7 @@ function openEditTicket(id) {
   const staffStatus = typeof RoleUi === 'undefined' || RoleUi.canUpdateTicketStatus();
   const userRole = typeof RoleUi !== 'undefined' && RoleUi.isUser && RoleUi.isUser();
   const pending = normSt === 'pending-requester';
+  const resolved = normSt === 'resolved';
   if (staffStatus) {
     etStatus.disabled = false;
     etStatus.title = '';
@@ -658,6 +698,10 @@ function openEditTicket(id) {
     etStatus.disabled = false;
     etStatus.title =
       'After providing the requested information, set status to Open or In progress so IT can continue.';
+  } else if (userRole && resolved) {
+    etStatus.disabled = false;
+    etStatus.title =
+      'Close the ticket with a satisfaction rating, or reopen as Open if the issue is not fixed.';
   } else {
     etStatus.disabled = true;
     etStatus.title = 'Only staff can change status.';
@@ -700,7 +744,12 @@ function openEditTicket(id) {
   const intTa = document.getElementById('et-new-internal');
   if (pubTa) pubTa.value = '';
   if (intTa) intTa.value = '';
+  const satSel = document.getElementById('et-satisfaction-rating');
+  const satTa = document.getElementById('et-satisfaction-comment');
+  if (satSel) satSel.value = '';
+  if (satTa) satTa.value = '';
   renderEditModalComments(t);
+  updateSatisfactionRowVisibility(t);
   document.getElementById('edit-form-error').textContent = '';
   document.getElementById('edit-ticket-modal').classList.add('open');
 }
@@ -725,9 +774,10 @@ window.saveEditTicket = async function() {
   const staffStatus = typeof RoleUi === 'undefined' || RoleUi.canUpdateTicketStatus();
   const userRole = typeof RoleUi !== 'undefined' && RoleUi.isUser && RoleUi.isUser();
   const wasPending = twNorm(t.status) === 'pending-requester';
+  const wasResolved = twNorm(t.status) === 'resolved';
   const status = staffStatus
     ? document.getElementById('et-status').value
-    : userRole && wasPending
+    : userRole && (wasPending || wasResolved)
       ? document.getElementById('et-status').value
       : t.status || 'open';
   const agentVal = canAssignRole ? document.getElementById('et-agent').value : '';
@@ -743,6 +793,15 @@ window.saveEditTicket = async function() {
   if (!status) {
     errEl.textContent = 'Please select a status.';
     return;
+  }
+
+  const nextNormPre = twNorm(status);
+  if (userRole && wasResolved && nextNormPre === 'closed') {
+    const r = Number(document.getElementById('et-satisfaction-rating')?.value);
+    if (!Number.isFinite(r) || r < 1 || r > 5) {
+      errEl.textContent = 'Please choose a satisfaction rating from 1 to 5 to close the ticket.';
+      return;
+    }
   }
 
   let assignedUserId = t.assignedUserId;
@@ -775,12 +834,29 @@ window.saveEditTicket = async function() {
     closedAt: t.closedAt,
     createdAt: t.createdAt,
     department: t.department,
+    satisfactionRating: t.satisfactionRating,
+    satisfactionComment: t.satisfactionComment,
+    satisfactionAt: t.satisfactionAt,
+    closedByRequester: t.closedByRequester,
   };
   t.title = title;
   t.priority = priority;
   t.status = twNorm(status);
   t.assignedUserId = assignedUserId;
   t.department = deptVal || null;
+  if (userRole && wasResolved && twNorm(t.status) === 'closed') {
+    const r = Number(document.getElementById('et-satisfaction-rating').value);
+    t.satisfactionRating = r;
+    const sc = document.getElementById('et-satisfaction-comment')?.value?.trim() || '';
+    t.satisfactionComment = sc || null;
+    t.satisfactionAt = isoNow();
+    t.closedByRequester = true;
+  } else if (userRole && wasResolved && twNorm(t.status) === 'open') {
+    t.satisfactionRating = null;
+    t.satisfactionComment = null;
+    t.satisfactionAt = null;
+    t.closedByRequester = null;
+  }
   if (twTerminal(t.status)) {
     if (!t.resolvedAt) t.resolvedAt = isoNow();
     if (twNorm(t.status) === 'closed' && !t.closedAt) t.closedAt = isoNow();
@@ -823,6 +899,10 @@ window.saveEditTicket = async function() {
       RoleUi.canAddInternalTicketNotes()
     ) {
       body.newInternalComment = intNote;
+    }
+    if (userRole && wasResolved && twNorm(t.status) === 'closed') {
+      body.satisfactionRating = t.satisfactionRating;
+      if (t.satisfactionComment) body.satisfactionComment = t.satisfactionComment;
     }
     res = await ApiClient.upsertTicketRlsWithResult(body);
   } else if (typeof ApiClient !== 'undefined' && ApiClient.upsertTicketWithResult) {
@@ -947,6 +1027,11 @@ void (async function bootTicketsPage() {
 })();
 document.getElementById('nt-submit')?.addEventListener('click', () => void submitNewTicket());
 document.getElementById('et-submit')?.addEventListener('click', () => void saveEditTicket());
+document.getElementById('et-status')?.addEventListener('change', () => {
+  const tid = Number(document.getElementById('et-id')?.value);
+  const ticket = tid ? DB.tickets.find((x) => x.id === tid) : null;
+  if (ticket) updateSatisfactionRowVisibility(ticket);
+});
 </script>
 </body>
 </html>

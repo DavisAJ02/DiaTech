@@ -172,10 +172,11 @@ function stripTicketTransportFields(body) {
   return t;
 }
 
-/** Phase 1–2 — statuts canoniques (aligné sur ticket-workflow.js). */
+/** Phase 1–3 — statuts canoniques (aligné sur ticket-workflow.js). */
 const TICKET_STATUSES_ORDER = ["open", "in-progress", "pending-requester", "resolved", "closed"];
 const TICKET_COMMENT_MAX_LEN = 8000;
 const TICKET_MAX_COMMENTS = 400;
+const TICKET_SATISFACTION_COMMENT_MAX = 2000;
 const TICKET_STATUS_SET = new Set(TICKET_STATUSES_ORDER);
 const TICKET_STATUS_ALIASES = {
   pending: "pending-requester",
@@ -197,11 +198,34 @@ function normalizeTicketStatus(raw) {
   return a && TICKET_STATUS_SET.has(a) ? a : "";
 }
 
+function parseSatisfactionRating(raw) {
+  const n = Number(raw);
+  if (!Number.isFinite(n)) return null;
+  const i = Math.round(n);
+  if (i < 1 || i > 5) return null;
+  return i;
+}
+
+function sanitizeSatisfactionComment(raw) {
+  if (raw == null) return "";
+  const s = String(raw).replace(/\r\n/g, "\n").trim();
+  if (!s) return "";
+  return s.length > TICKET_SATISFACTION_COMMENT_MAX ? s.slice(0, TICKET_SATISFACTION_COMMENT_MAX) : s;
+}
+
+function isTicketCreatedByUser(existing, uid) {
+  if (!existing || !uid || !existing.created_by) return false;
+  return String(uid) === String(existing.created_by);
+}
+
 /**
  * Valide le statut, applique règles demandeur vs staff, horodatages resolvedAt / closedAt.
+ * @param {{ uid?: string, createdBy?: string }} [workflowOpts] — createdBy = existing.created_by (Phase 3).
  * @returns {{ error: string, detail?: string } | null}
  */
-function validateAndApplyTicketWorkflow(merged, base, existing, profileRole) {
+function validateAndApplyTicketWorkflow(merged, base, existing, profileRole, workflowOpts) {
+  const opts = workflowOpts || {};
+  const uid = opts.uid || null;
   const prevNorm = existing ? normalizeTicketStatus(base.status) : "open";
   const rawNext =
     merged.status !== undefined && merged.status !== null && merged.status !== ""
@@ -216,6 +240,8 @@ function validateAndApplyTicketWorkflow(merged, base, existing, profileRole) {
   merged.status = nextNorm;
 
   if (profileRole === "user") {
+    const owner = isTicketCreatedByUser(existing, uid);
+    let requesterReopenedFromResolved = false;
     if (!existing) {
       if (nextNorm !== "open") {
         return { error: "invalid_ticket_status", detail: "New tickets must start as open." };
@@ -223,8 +249,33 @@ function validateAndApplyTicketWorkflow(merged, base, existing, profileRole) {
     } else if (nextNorm !== prevNorm) {
       const canLeavePending =
         prevNorm === "pending-requester" && (nextNorm === "open" || nextNorm === "in-progress");
-      if (!canLeavePending) {
+      const canCloseResolved = owner && prevNorm === "resolved" && nextNorm === "closed";
+      const canReopenResolved = owner && prevNorm === "resolved" && nextNorm === "open";
+      if (!canLeavePending && !canCloseResolved && !canReopenResolved) {
         return { error: "status_forbidden", detail: "Only staff may change ticket status." };
+      }
+      if (canCloseResolved) {
+        const rating = parseSatisfactionRating(merged.satisfactionRating);
+        if (rating == null) {
+          return {
+            error: "satisfaction_required",
+            detail: "A satisfaction rating from 1 to 5 is required to close the ticket.",
+          };
+        }
+        merged.satisfactionRating = rating;
+        const sc = sanitizeSatisfactionComment(merged.satisfactionComment);
+        merged.satisfactionComment = sc || null;
+        merged.satisfactionAt = new Date().toISOString();
+        merged.closedByRequester = true;
+      }
+      if (canReopenResolved) {
+        requesterReopenedFromResolved = true;
+        merged.satisfactionRating = null;
+        merged.satisfactionComment = null;
+        merged.satisfactionAt = null;
+        merged.closedByRequester = null;
+        merged.resolvedAt = null;
+        merged.closedAt = null;
       }
     }
     const dOld = String(ticketPayloadDepartment(base)).trim().toLowerCase();
@@ -232,8 +283,25 @@ function validateAndApplyTicketWorkflow(merged, base, existing, profileRole) {
     if (existing && dOld !== dNew) {
       return { error: "department_change_forbidden", detail: "Only staff may change department." };
     }
-    merged.resolvedAt = base.resolvedAt ?? merged.resolvedAt ?? null;
-    merged.closedAt = base.closedAt ?? merged.closedAt ?? null;
+    const mayPatchSat =
+      owner && prevNorm === "resolved" && nextNorm === "closed" && nextNorm !== prevNorm;
+    if (existing && !mayPatchSat && !requesterReopenedFromResolved) {
+      merged.satisfactionRating = base.satisfactionRating ?? null;
+      merged.satisfactionComment = base.satisfactionComment ?? null;
+      merged.satisfactionAt = base.satisfactionAt ?? null;
+      merged.closedByRequester = base.closedByRequester ?? null;
+    }
+    if (existing && profileRole === "user") {
+      if (requesterReopenedFromResolved) {
+        /* timestamps déjà effacés */
+      } else if (nextNorm === "closed") {
+        merged.resolvedAt = base.resolvedAt ?? merged.resolvedAt ?? null;
+        if (!merged.closedAt) merged.closedAt = new Date().toISOString();
+      } else {
+        merged.resolvedAt = base.resolvedAt ?? merged.resolvedAt ?? null;
+        merged.closedAt = base.closedAt ?? merged.closedAt ?? null;
+      }
+    }
     return null;
   }
 
@@ -1260,9 +1328,14 @@ app.post("/api/tickets-rls", async (req, res) => {
     }
   }
 
-  const wfErr = validateAndApplyTicketWorkflow(merged, base, existing, profileRole);
+  const wfErr = validateAndApplyTicketWorkflow(merged, base, existing, profileRole, {
+    uid,
+    createdBy: existing?.created_by,
+  });
   if (wfErr) {
-    return res.status(wfErr.error === "status_forbidden" || wfErr.error === "department_change_forbidden" ? 403 : 400).json({
+    const code403 =
+      wfErr.error === "status_forbidden" || wfErr.error === "department_change_forbidden";
+    return res.status(code403 ? 403 : 400).json({
       error: wfErr.error,
       detail: wfErr.detail || "",
     });

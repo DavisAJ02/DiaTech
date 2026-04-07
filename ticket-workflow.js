@@ -1,7 +1,7 @@
 /**
- * DiaTech — cycle de vie des tickets (Phase 1–2).
- * Statuts : open → in-progress → pending-requester → resolved → closed
- * Phase 2 : le demandeur peut repasser en open / in-progress depuis pending-requester.
+ * DiaTech — cycle de vie des tickets (Phase 1–3).
+ * Phase 2 : pending-requester → open | in-progress.
+ * Phase 3 : resolved → closed (satisfaction) ou → open (reopen) côté demandeur.
  */
 (function (global) {
   var STATUSES = ["open", "in-progress", "pending-requester", "resolved", "closed"];
@@ -75,6 +75,13 @@
         { value: "pending-requester", label: LABELS["pending-requester"] + " (current)" },
         { value: "open", label: "Open — information provided" },
         { value: "in-progress", label: "In progress — resume work" },
+      ];
+    }
+    if (cur === "resolved") {
+      return [
+        { value: "resolved", label: LABELS.resolved + " (current)" },
+        { value: "closed", label: "Closed — confirm & rate" },
+        { value: "open", label: "Open — issue not fixed" },
       ];
     }
     return [{ value: cur, label: statusLabel(cur) }];
