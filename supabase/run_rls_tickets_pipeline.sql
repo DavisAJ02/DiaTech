@@ -1,6 +1,8 @@
 -- ═══════════════════════════════════════════════════════════════════════════
 -- Pipeline tickets RLS — coller TOUT ce fichier dans Supabase SQL Editor → Run
 -- Prérequis : schema_rls_entities.sql déjà exécuté (tables dia_tickets, RLS).
+-- RPC liste des départements (tickets) : inclus dans schema_rls_entities.sql ; sinon exécuter
+--   supabase/rpc_dia_ticket_department_names.sql
 -- ═══════════════════════════════════════════════════════════════════════════
 
 -- ── 1) RPC email → auth.users.id (service_role uniquement) ─────────────────

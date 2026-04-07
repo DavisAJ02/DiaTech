@@ -211,6 +211,8 @@
       requestWithResultAuth(`/admin/users/${encodeURIComponent(String(id))}`, { method: "DELETE" }),
     adminListAudit: (limit) =>
       requestWithResultAuth("/admin/audit?limit=" + encodeURIComponent(String(limit || 50))),
+    adminDepartmentNamesFromTickets: () =>
+      requestWithResultAuth("/admin/department-names-from-tickets"),
 
     getDepartments: () => request("/departments"),
     upsertDepartment: (department) => request("/departments", { method: "POST", body: JSON.stringify(department || {}) }),

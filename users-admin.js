@@ -171,7 +171,7 @@
       .join("");
 
     tbody.querySelectorAll(".btn-user-edit").forEach((btn) => {
-      btn.addEventListener("click", () => openModal(String(btn.dataset.id)));
+      btn.addEventListener("click", () => void openModal(String(btn.dataset.id)));
     });
     tbody.querySelectorAll(".btn-user-del").forEach((btn) => {
       btn.addEventListener("click", () => removeUser(String(btn.dataset.id)));
@@ -193,13 +193,96 @@
     return typeof getUserById === "function" ? getUserById(Number.isFinite(n) ? n : id) : null;
   }
 
-  function buildDepartmentGrid() {
+  function departmentNamesFromDbDepartments() {
+    const depts = Array.isArray(global.DB?.departments) ? global.DB.departments : [];
+    return depts.map((d) => d && d.name).filter(Boolean);
+  }
+
+  /** Noms de services déjà présents sur les tickets (utile si app_state.departments est vide). */
+  function departmentNamesFromTicketsFallback() {
+    const tickets = Array.isArray(global.DB?.tickets) ? global.DB.tickets : [];
+    const s = new Set();
+    for (let i = 0; i < tickets.length; i++) {
+      const d = String(tickets[i]?.department || "").trim();
+      if (d) s.add(d);
+    }
+    return [...s].sort((a, b) => a.localeCompare(b, undefined, { sensitivity: "base" }));
+  }
+
+  /**
+   * Résout la liste des services pour la grille admin : DB → tickets locaux → GET /api/departments → GET /api/app-data.
+   * Met à jour DB.departments quand l’API renvoie des entrées complètes.
+   */
+  async function ensureDepartmentNamesForAdminGrid() {
+    let names = departmentNamesFromDbDepartments();
+    if (names.length) return names;
+    names = departmentNamesFromTicketsFallback();
+    if (names.length) return names;
+
+    const AC = typeof global.ApiClient !== "undefined" ? global.ApiClient : null;
+    if (AC && typeof AC.getDepartments === "function") {
+      try {
+        const remote = await AC.getDepartments();
+        if (Array.isArray(remote) && remote.length) {
+          if (global.DB) global.DB.departments = remote;
+          return remote.map((d) => d && d.name).filter(Boolean);
+        }
+      } catch (_e) {
+        /* ignore */
+      }
+    }
+    if (AC && typeof AC.getAppData === "function") {
+      try {
+        const pack = await AC.getAppData();
+        if (pack && Array.isArray(pack.departments) && pack.departments.length) {
+          if (global.DB) global.DB.departments = pack.departments;
+          return pack.departments.map((d) => d && d.name).filter(Boolean);
+        }
+      } catch (_e) {
+        /* ignore */
+      }
+    }
+    if (
+      useRemoteAdminUsers() &&
+      AC &&
+      typeof AC.adminDepartmentNamesFromTickets === "function"
+    ) {
+      try {
+        const r = await AC.adminDepartmentNamesFromTickets();
+        const list = r && r.ok && r.data && Array.isArray(r.data.names) ? r.data.names : [];
+        if (list.length && global.DB) {
+          const hasDb = Array.isArray(global.DB.departments) && global.DB.departments.length > 0;
+          if (!hasDb) {
+            global.DB.departments = list.map((name) => ({ name: String(name) }));
+          }
+        }
+        if (list.length) return list.map((n) => String(n).trim()).filter(Boolean);
+      } catch (_e) {
+        /* ignore */
+      }
+    }
+    return [];
+  }
+
+  /**
+   * @param {string[]|null|undefined} mergeExtraNames — ex. profils déjà assignés à des services absents du référentiel
+   */
+  async function buildDepartmentGrid(mergeExtraNames) {
     const host = document.getElementById("ue-departments-grid");
     if (!host) return;
-    const depts = Array.isArray(global.DB?.departments) ? global.DB.departments : [];
-    const names = depts.map((d) => d && d.name).filter(Boolean);
+    host.innerHTML = '<span class="ue-hint">Chargement des services…</span>';
+    let names = await ensureDepartmentNamesForAdminGrid();
+    if (Array.isArray(mergeExtraNames) && mergeExtraNames.length) {
+      const set = new Set(names);
+      mergeExtraNames.forEach((n) => {
+        const s = String(n || "").trim();
+        if (s) set.add(s);
+      });
+      names = [...set].sort((a, b) => a.localeCompare(b, undefined, { sensitivity: "base" }));
+    }
     if (!names.length) {
-      host.innerHTML = '<span class="ue-hint">No departments in local data.</span>';
+      host.innerHTML =
+        '<span class="ue-hint">Aucun département trouvé. Ouvrez la page <strong>Départements</strong> pour créer ou synchroniser la liste (données serveur), ou vérifiez que vos tickets portent un champ service. Sans liste, vous ne pouvez pas fixer le périmètre d’un demandeur.</span>';
       return;
     }
     host.innerHTML = names
@@ -221,8 +304,8 @@
     }
   }
 
-  function setDepartmentScopeOnForm(scope) {
-    buildDepartmentGrid();
+  async function setDepartmentScopeOnForm(scope) {
+    await buildDepartmentGrid(Array.isArray(scope) ? scope : null);
     const allEl = document.getElementById("ue-departments-all");
     if (scope == null || scope === undefined) {
       if (allEl) allEl.checked = true;
@@ -267,7 +350,7 @@
     if (npw) npw.value = "";
   }
 
-  function openModal(userId) {
+  async function openModal(userId) {
     const modal = document.getElementById("user-edit-modal");
     if (!modal) return;
     const u = findUserRow(userId);
@@ -320,7 +403,7 @@
     document.getElementById("ue-f-export").checked = rest.canExportReports !== false;
     document.getElementById("ue-f-departments").checked = rest.canManageDepartments !== false;
 
-    setDepartmentScopeOnForm(u.allowedDepartmentNames);
+    await setDepartmentScopeOnForm(u.allowedDepartmentNames);
 
     document.getElementById("ue-modal-title").textContent = remote ? "Edit user" : u.managed ? "Edit agent" : "Edit user";
     document.getElementById("ue-error").textContent = "";
@@ -568,7 +651,7 @@
     renderTable();
   }
 
-  function openCreateModal() {
+  async function openCreateModal() {
     const modal = document.getElementById("user-edit-modal");
     if (!modal) return;
     const inv = document.getElementById("ue-invite-email");
@@ -600,7 +683,7 @@
     document.getElementById("ue-f-assignee").checked = true;
     document.getElementById("ue-f-export").checked = true;
     document.getElementById("ue-f-departments").checked = true;
-    setDepartmentScopeOnForm(null);
+    await setDepartmentScopeOnForm(null);
     document.getElementById("ue-error").textContent = "";
     setPasswordRows("create");
     syncRoleDependentUi();
@@ -810,7 +893,7 @@
         ? "Comptes Supabase : création, rôles, modules, capacités et périmètre départements (persistés en base)."
         : "Create agent logins, limit which modules they see, and toggle capabilities. Changes are stored in this browser only.";
     }
-    buildDepartmentGrid();
+    await buildDepartmentGrid();
     await refreshRemoteUsers();
     renderTable();
     await loadAdminAudit();
@@ -818,7 +901,7 @@
     document.getElementById("ue-invite-email")?.addEventListener("change", () => {
       if (!document.getElementById("ue-id")?.value) setPasswordRows("create");
     });
-    document.getElementById("btn-create-agent")?.addEventListener("click", openCreateModal);
+    document.getElementById("btn-create-agent")?.addEventListener("click", () => void openCreateModal());
     document.getElementById("user-modal-cancel")?.addEventListener("click", closeModal);
     document.getElementById("user-edit-modal")?.addEventListener("click", (e) => {
       if (e.target.id === "user-edit-modal") closeModal();

@@ -1119,6 +1119,29 @@ app.get("/api/admin/audit", async (req, res) => {
   res.json({ entries: data || [] });
 });
 
+/**
+ * Services distincts : RPC SQL public.diatech_distinct_ticket_departments() sur dia_tickets (admin JWT).
+ * Migration : supabase/rpc_dia_ticket_department_names.sql ou fin de schema_rls_entities.sql.
+ */
+app.get("/api/admin/department-names-from-tickets", async (req, res) => {
+  const ctx = await resolveAdminContext(req, res);
+  if (!ctx) return;
+  const { data, error } = await ctx.svc.rpc("diatech_distinct_ticket_departments");
+  if (error) {
+    return res.status(500).json({
+      error: "department_names_rpc_failed",
+      detail: error.message || String(error),
+      hint: "Exécutez supabase/rpc_dia_ticket_department_names.sql dans le SQL Editor Supabase.",
+    });
+  }
+  const raw = Array.isArray(data) ? data : [];
+  const names = raw
+    .map((x) => String(x == null ? "" : x).trim())
+    .filter(Boolean)
+    .sort((a, b) => a.localeCompare(b, undefined, { sensitivity: "base" }));
+  res.json({ names });
+});
+
 app.delete("/api/admin/users/:id", async (req, res) => {
   const ctx = await resolveAdminContext(req, res);
   if (!ctx) return;
