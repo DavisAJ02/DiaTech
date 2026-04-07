@@ -38,6 +38,20 @@ create policy dia_tickets_select_assigned
   for select
   using (auth.uid() = assigned_to);
 
+-- Agents : voir tous les tickets (filtrage départements côté API /api/tickets-rls si besoin).
+drop policy if exists dia_tickets_select_agent on public.dia_tickets;
+create policy dia_tickets_select_agent
+  on public.dia_tickets
+  for select
+  using (
+    exists (
+      select 1
+      from public.profiles p
+      where p.id = auth.uid()
+        and p.role = 'agent'
+    )
+  );
+
 drop policy if exists dia_tickets_admin_all on public.dia_tickets;
 create policy dia_tickets_admin_all
   on public.dia_tickets
@@ -75,12 +89,9 @@ create policy dia_tickets_update_participants
       where p.id = auth.uid() and p.role = 'admin'
     )
     or created_by = auth.uid()
-    or (
-      assigned_to = auth.uid()
-      and exists (
-        select 1 from public.profiles p
-        where p.id = auth.uid() and p.role = 'agent'
-      )
+    or exists (
+      select 1 from public.profiles p
+      where p.id = auth.uid() and p.role = 'agent'
     )
   )
   with check (
@@ -89,12 +100,9 @@ create policy dia_tickets_update_participants
       where p.id = auth.uid() and p.role = 'admin'
     )
     or created_by = auth.uid()
-    or (
-      assigned_to = auth.uid()
-      and exists (
-        select 1 from public.profiles p
-        where p.id = auth.uid() and p.role = 'agent'
-      )
+    or exists (
+      select 1 from public.profiles p
+      where p.id = auth.uid() and p.role = 'agent'
     )
   );
 
@@ -107,14 +115,23 @@ security definer
 set search_path = public
 as $$
 begin
+  -- Admin : aucune limite sur assigned_to / payload (created_by : garder cohérent avec les besoins métier).
   if exists (select 1 from public.profiles p where p.id = auth.uid() and p.role = 'admin') then
     return new;
   end if;
+  -- Agent (technicien) : peut modifier assigned_to et le payload ; pas created_by.
+  if exists (select 1 from public.profiles p where p.id = auth.uid() and p.role = 'agent') then
+    if new.created_by is distinct from old.created_by then
+      raise exception 'dia_tickets: created_by ne peut être modifié que par un admin';
+    end if;
+    return new;
+  end if;
+  -- Demandeur (user) et autres : pas de changement de created_by ni assigned_to.
   if new.created_by is distinct from old.created_by then
     raise exception 'dia_tickets: created_by ne peut être modifié que par un admin';
   end if;
   if new.assigned_to is distinct from old.assigned_to then
-    raise exception 'dia_tickets: seul un admin peut modifier assigned_to';
+    raise exception 'dia_tickets: seul un admin ou un agent peut modifier assigned_to';
   end if;
   return new;
 end;
@@ -247,7 +264,7 @@ grant select, insert, update, delete on public.dia_devices to authenticated;
 grant select, insert, update, delete on public.dia_inventory to authenticated;
 grant select, insert, update, delete on public.dia_alert_rules to authenticated;
 
-comment on table public.dia_tickets is 'Tickets avec RLS : créateur, assigné (agent), ou admin.';
+comment on table public.dia_tickets is 'Tickets avec RLS : admin tout ; agent voit/met à jour la file (assignation) ; créateur user ; filtre départements côté API si besoin.';
 comment on table public.dia_devices is 'Parc devices ; lecture tout profil, écriture admin/agent.';
 comment on table public.dia_inventory is 'Inventaire ; accès admin/agent uniquement.';
 comment on table public.dia_alert_rules is 'Règles d''alertes ; lecture authentifié, écriture admin.';
