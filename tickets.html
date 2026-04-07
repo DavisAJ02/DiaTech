@@ -43,6 +43,7 @@
 <script src="i18n.js"></script>
 <script src="env-public.js"></script>
 <script src="role-ui.js"></script>
+<script src="ticket-workflow.js"></script>
 <script src="auth.js"></script>
 <script src="data-sync.js"></script>
 <script src="api-client.js"></script>
@@ -125,6 +126,8 @@
       <button class="tab active" data-tab="all">All<span class="ticket-count" id="cnt-all">10</span></button>
       <button class="tab" data-tab="open">Open<span class="ticket-count" id="cnt-open">—</span></button>
       <button class="tab" data-tab="in-progress">In Progress<span class="ticket-count" id="cnt-in-progress">—</span></button>
+      <button class="tab" data-tab="pending-requester">Waiting<span class="ticket-count" id="cnt-pending-requester">—</span></button>
+      <button class="tab" data-tab="done">Done<span class="ticket-count" id="cnt-done">—</span></button>
       <button class="tab" data-tab="critical">Critical<span class="ticket-count" id="cnt-critical">—</span></button>
       <button class="tab" data-tab="unassigned">Unassigned<span class="ticket-count" id="cnt-unassigned">—</span></button>
     </div>
@@ -218,13 +221,9 @@
     </div>
     <div class="form-row">
       <label for="et-status">Status</label>
-      <select id="et-status">
-        <option value="open">Open</option>
-        <option value="in-progress">In Progress</option>
-        <option value="resolved">Resolved</option>
-      </select>
+      <select id="et-status"></select>
     </div>
-    <div class="form-row">
+    <div class="form-row" id="et-department-row">
       <label for="et-department">Department</label>
       <select id="et-department">
         <option value="">— None —</option>
@@ -262,6 +261,37 @@ function isoNow() {
   return new Date().toISOString();
 }
 
+function twNorm(s) {
+  const W = window.DiaTechTicketWorkflow;
+  if (W && typeof W.normalizeTicketStatus === 'function') {
+    const n = W.normalizeTicketStatus(s);
+    if (n) return n;
+  }
+  const x = String(s == null ? 'open' : s)
+    .trim()
+    .toLowerCase()
+    .replace(/_/g, '-');
+  if (['open', 'in-progress', 'pending-requester', 'resolved', 'closed'].includes(x)) return x;
+  return 'open';
+}
+
+function twTerminal(s) {
+  const W = window.DiaTechTicketWorkflow;
+  if (W && typeof W.isTerminalTicketStatus === 'function') return W.isTerminalTicketStatus(s);
+  const n = twNorm(s);
+  return n === 'resolved' || n === 'closed';
+}
+
+function fillEditStatusSelect() {
+  const el = document.getElementById('et-status');
+  if (!el || !window.DiaTechTicketWorkflow || typeof window.DiaTechTicketWorkflow.getStatusSelectOptions !== 'function') return;
+  const opts = window.DiaTechTicketWorkflow.getStatusSelectOptions();
+  const prev = el.value;
+  el.innerHTML = opts.map((o) => `<option value="${o.value}">${o.label}</option>`).join('');
+  const allowed = new Set(opts.map((o) => o.value));
+  el.value = allowed.has(prev) ? prev : 'open';
+}
+
 function ensureTicketDateFields(list) {
   const src = Array.isArray(list) ? list : [];
   const baseTs = Date.now();
@@ -273,14 +303,29 @@ function ensureTicketDateFields(list) {
       next.createdAt = new Date(baseTs - offsetHours * 3600000).toISOString();
       changed = true;
     }
-    if (String(next.status || '').toLowerCase() === 'resolved') {
+    const st = twNorm(next.status);
+    if (next.status !== st) {
+      next.status = st;
+      changed = true;
+    }
+    if (twTerminal(next.status)) {
       if (!next.resolvedAt) {
         next.resolvedAt = isoNow();
         changed = true;
       }
-    } else if (next.resolvedAt) {
-      next.resolvedAt = null;
-      changed = true;
+      if (st === 'closed' && !next.closedAt) {
+        next.closedAt = isoNow();
+        changed = true;
+      }
+    } else {
+      if (next.resolvedAt) {
+        next.resolvedAt = null;
+        changed = true;
+      }
+      if (next.closedAt) {
+        next.closedAt = null;
+        changed = true;
+      }
     }
     return next;
   });
@@ -411,7 +456,7 @@ function ticketSlaMeta(ticket) {
     typeof getSlaTargetHoursForDate === 'function'
       ? Number(getSlaTargetHoursForDate(createdAt)) || 4
       : 4;
-  const isResolved = String(ticket?.status || '').toLowerCase() === 'resolved';
+  const isResolved = twTerminal(ticket?.status);
   const endAt = isResolved ? ticket?.resolvedAt || isoNow() : isoNow();
   const delta = safeHoursDelta(createdAt, endAt, targetHours);
   if (delta == null) return { label: fallbackLabel, cls: fallbackClass };
@@ -425,11 +470,15 @@ function ticketSlaMeta(ticket) {
 }
 
 function statusBadge(status) {
-  const s = status || 'open';
+  const s = twNorm(status);
   let cls = 'status-open';
-  let label = 'Open';
-  if (s === 'in-progress') { cls = 'warn'; label = 'In Progress'; }
-  if (s === 'resolved') { cls = 'ok'; label = 'Resolved'; }
+  let label = window.DiaTechTicketWorkflow && typeof window.DiaTechTicketWorkflow.statusLabel === 'function'
+    ? window.DiaTechTicketWorkflow.statusLabel(s)
+    : 'Open';
+  if (s === 'in-progress') cls = 'warn';
+  if (s === 'pending-requester') cls = 'warn';
+  if (s === 'resolved') cls = 'ok';
+  if (s === 'closed') cls = 'ok';
   return `<span class="sla-badge ${cls}">${label}</span>`;
 }
 
@@ -469,8 +518,13 @@ function renderTickets() {
 
   let filtered = scoped.filter(t => {
     const slaMeta = ticketSlaMeta(t);
-    if (currentTab === 'open' && String(t.status || '').toLowerCase() !== 'open') return false;
-    if (currentTab === 'in-progress' && String(t.status || '').toLowerCase() !== 'in-progress') return false;
+    if (currentTab === 'open' && twNorm(t.status) !== 'open') return false;
+    if (currentTab === 'in-progress' && twNorm(t.status) !== 'in-progress') return false;
+    if (currentTab === 'pending-requester' && twNorm(t.status) !== 'pending-requester') return false;
+    if (currentTab === 'done') {
+      const n = twNorm(t.status);
+      if (n !== 'resolved' && n !== 'closed') return false;
+    }
     if (currentTab === 'critical' && t.priority !== 'critical') return false;
     if (currentTab === 'unassigned' && t.assignedUserId) return false;
     if (search && !t.title.toLowerCase().includes(search) && !String(t.id).includes(search) && !String(t.department || '').toLowerCase().includes(search)) return false;
@@ -497,8 +551,17 @@ function renderTickets() {
   `).join('');
 
   document.getElementById('cnt-all').textContent = scoped.length;
-  document.getElementById('cnt-open').textContent = scoped.filter(t => String(t.status || '').toLowerCase() === 'open').length;
-  document.getElementById('cnt-in-progress').textContent = scoped.filter(t => String(t.status || '').toLowerCase() === 'in-progress').length;
+  document.getElementById('cnt-open').textContent = scoped.filter(t => twNorm(t.status) === 'open').length;
+  document.getElementById('cnt-in-progress').textContent = scoped.filter(t => twNorm(t.status) === 'in-progress').length;
+  const cntPend = document.getElementById('cnt-pending-requester');
+  if (cntPend) cntPend.textContent = scoped.filter(t => twNorm(t.status) === 'pending-requester').length;
+  const cntDone = document.getElementById('cnt-done');
+  if (cntDone) {
+    cntDone.textContent = scoped.filter(t => {
+      const n = twNorm(t.status);
+      return n === 'resolved' || n === 'closed';
+    }).length;
+  }
   document.getElementById('cnt-critical').textContent = scoped.filter(t=>t.priority==='critical').length;
   document.getElementById('cnt-unassigned').textContent = scoped.filter(t=>!t.assignedUserId).length;
 }
@@ -524,11 +587,13 @@ document.getElementById('tickets-full-body').addEventListener('click', (e) => {
 function openEditTicket(id) {
   const t = DB.tickets.find(x => x.id === id);
   if (!t) return;
+  fillEditStatusSelect();
   document.getElementById('et-id').value = String(id);
   document.getElementById('et-title').value = t.title;
   document.getElementById('et-priority').value = t.priority;
   const etStatus = document.getElementById('et-status');
-  etStatus.value = t.status || 'open';
+  const normSt = twNorm(t.status);
+  etStatus.value = [...etStatus.options].some((o) => o.value === normSt) ? normSt : 'open';
   const canStatus = typeof RoleUi === 'undefined' || RoleUi.canUpdateTicketStatus();
   etStatus.disabled = !canStatus;
   etStatus.title = canStatus ? '' : 'Seuls agent et admin peuvent modifier le statut.';
@@ -541,10 +606,20 @@ function openEditTicket(id) {
     assignRow.hidden = !canAssign;
     assignRow.style.display = canAssign ? '' : 'none';
   }
+  const canRoute =
+    typeof RoleUi !== 'undefined' &&
+    typeof RoleUi.canEditTicketRoutingFields === 'function' &&
+    RoleUi.canEditTicketRoutingFields();
+  const deptRow = document.getElementById('et-department-row');
+  if (deptRow) {
+    deptRow.hidden = !canRoute;
+    deptRow.style.display = canRoute ? '' : 'none';
+  }
   const etDept = document.getElementById('et-department');
   if (etDept) {
     const dn = String(t.department || '').trim();
     etDept.value = [...etDept.options].some((o) => o.value === dn) ? dn : '';
+    etDept.disabled = !canRoute;
   }
   document.getElementById('edit-form-error').textContent = '';
   document.getElementById('edit-ticket-modal').classList.add('open');
@@ -600,25 +675,34 @@ window.saveEditTicket = async function() {
     }
   }
 
-  const deptVal = document.getElementById('et-department')?.value?.trim() || '';
+  const canRouteFields =
+    typeof RoleUi !== 'undefined' &&
+    typeof RoleUi.canEditTicketRoutingFields === 'function' &&
+    RoleUi.canEditTicketRoutingFields();
+  const deptVal = canRouteFields
+    ? document.getElementById('et-department')?.value?.trim() || ''
+    : String(t.department || '').trim();
   const prev = {
     title: t.title,
     priority: t.priority,
     status: t.status,
     assignedUserId: t.assignedUserId,
     resolvedAt: t.resolvedAt,
+    closedAt: t.closedAt,
     createdAt: t.createdAt,
     department: t.department,
   };
   t.title = title;
   t.priority = priority;
-  t.status = status;
+  t.status = twNorm(status);
   t.assignedUserId = assignedUserId;
   t.department = deptVal || null;
-  if (status === 'resolved') {
+  if (twTerminal(t.status)) {
     if (!t.resolvedAt) t.resolvedAt = isoNow();
+    if (twNorm(t.status) === 'closed' && !t.closedAt) t.closedAt = isoNow();
   } else {
     t.resolvedAt = null;
+    t.closedAt = null;
   }
   if (!t.createdAt) t.createdAt = isoNow();
 
@@ -633,6 +717,7 @@ window.saveEditTicket = async function() {
       assignedUserId: t.assignedUserId,
       department: t.department,
       resolvedAt: t.resolvedAt,
+      closedAt: t.closedAt,
       createdAt: t.createdAt,
       sla: t.sla,
       slaClass: t.slaClass,
@@ -752,6 +837,7 @@ void (async function bootTicketsPage() {
     console.error(e);
   }
   fillAssigneeSelect();
+  fillEditStatusSelect();
   fillDepartmentSelects();
   applyTicketUrlFilters();
   await hydrateTicketsFromApi();

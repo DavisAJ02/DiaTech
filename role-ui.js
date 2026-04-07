@@ -98,6 +98,13 @@
     return r === "admin" || r === "agent";
   }
 
+  /** Département + assignation : réservé staff (admin | agent). */
+  function canEditTicketRoutingFields() {
+    syncCurrentUserRole();
+    const r = global.currentUserRole;
+    return r === "admin" || r === "agent";
+  }
+
   global.RoleUi = {
     syncCurrentUserRole,
     hasRole,
@@ -107,5 +114,6 @@
     applySidebarNavVisibility,
     canAssignTickets,
     canUpdateTicketStatus,
+    canEditTicketRoutingFields,
   };
 })(typeof window !== "undefined" ? window : this);

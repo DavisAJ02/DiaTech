@@ -109,8 +109,15 @@ function computeTicketCountStats(tickets) {
   const list = Array.isArray(tickets) ? tickets : [];
   const openTickets = list.filter((t) => String(t?.status || '').toLowerCase() === 'open').length;
   const pendingTickets = list.filter((t) => {
-    const s = String(t?.status || '').toLowerCase();
-    return s === 'pending' || s === 'in-progress' || s === 'in_progress';
+    const s = String(t?.status || '')
+      .toLowerCase()
+      .replace(/_/g, '-');
+    return (
+      s === 'pending' ||
+      s === 'pending-requester' ||
+      s === 'in-progress' ||
+      s === 'in_progress'
+    );
   }).length;
   const overdueTickets = list.filter((t) => {
     const slaStatus = String(t?.slaStatus || '').toLowerCase();
@@ -760,14 +767,14 @@ function ticketMatchesDepartmentName(ticket, deptName) {
 
 function countOpenTicketsInDepartment(deptName) {
   return getSafeTickets().filter((t) => {
-    if (String(t?.status || '').toLowerCase() === 'resolved') return false;
+    if (isTicketResolvedDash(t)) return false;
     return ticketMatchesDepartmentName(t, deptName);
   }).length;
 }
 
 function departmentAlertPillCounts(deptName) {
   const open = getSafeTickets().filter((t) => {
-    if (String(t?.status || '').toLowerCase() === 'resolved') return false;
+    if (isTicketResolvedDash(t)) return false;
     return ticketMatchesDepartmentName(t, deptName);
   });
   const p1 = open.filter((t) => t.priority === 'critical' || ticketSlaClassLive(t) === 'breach').length;
@@ -788,18 +795,14 @@ function computeLiveAnalytics(range) {
     return cm != null && cm >= startMs && cm <= now;
   });
   const priSource =
-    inRange.length > 0
-      ? inRange
-      : tickets.filter((t) => String(t?.status || '').toLowerCase() !== 'resolved');
+    inRange.length > 0 ? inRange : tickets.filter((t) => !isTicketResolvedDash(t));
   const pri = { critical: 0, high: 0, medium: 0, low: 0 };
   priSource.forEach((t) => {
     const p = String(t.priority || 'low').toLowerCase();
     if (pri[p] !== undefined) pri[p]++;
   });
   const slaSource =
-    inRange.length > 0
-      ? inRange
-      : tickets.filter((t) => String(t?.status || '').toLowerCase() !== 'resolved');
+    inRange.length > 0 ? inRange : tickets.filter((t) => !isTicketResolvedDash(t));
   let met = 0;
   let warn = 0;
   let breach = 0;
@@ -810,9 +813,7 @@ function computeLiveAnalytics(range) {
     else met++;
   });
   const slaSplitPct = toSlaSplitPct(met, warn, breach);
-  const resolvedInRange = inRange.filter(
-    (t) => String(t?.status || '').toLowerCase() === 'resolved' && t?.resolvedAt
-  );
+  const resolvedInRange = inRange.filter((t) => isTicketResolvedDash(t) && t?.resolvedAt);
   let sumH = 0;
   let nRes = 0;
   resolvedInRange.forEach((t) => {
@@ -1813,7 +1814,7 @@ function rebuildLiveNotifications() {
   const items = [];
   const tickets = getDashboardRole() === 'admin' ? getSafeTickets() : getDashboardTickets();
   tickets
-    .filter((t) => String(t?.priority || '').toLowerCase() === 'critical' && String(t?.status || '').toLowerCase() !== 'resolved')
+    .filter((t) => String(t?.priority || '').toLowerCase() === 'critical' && !isTicketResolvedDash(t))
     .slice(0, 4)
     .forEach((t) => {
       const ts = ticketCreatedMs(t) || Date.now();
@@ -1825,7 +1826,7 @@ function rebuildLiveNotifications() {
       });
     });
   tickets
-    .filter((t) => ticketSlaClassLive(t) === 'breach' && String(t?.status || '').toLowerCase() !== 'resolved')
+    .filter((t) => ticketSlaClassLive(t) === 'breach' && !isTicketResolvedDash(t))
     .slice(0, 3)
     .forEach((t) => {
       if (items.some((x) => x.id === `t-${t.id}`)) return;

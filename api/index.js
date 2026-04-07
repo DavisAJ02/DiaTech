@@ -169,6 +169,87 @@ function stripTicketTransportFields(body) {
   return t;
 }
 
+/** Phase 1 — statuts canoniques (aligné sur ticket-workflow.js). */
+const TICKET_STATUSES_ORDER = ["open", "in-progress", "pending-requester", "resolved", "closed"];
+const TICKET_STATUS_SET = new Set(TICKET_STATUSES_ORDER);
+const TICKET_STATUS_ALIASES = {
+  pending: "pending-requester",
+  in_progress: "in-progress",
+  done: "resolved",
+  complete: "resolved",
+  completed: "resolved",
+  cancelled: "closed",
+  canceled: "closed",
+};
+
+function normalizeTicketStatus(raw) {
+  const s = String(raw == null ? "open" : raw)
+    .trim()
+    .toLowerCase()
+    .replace(/_/g, "-");
+  if (TICKET_STATUS_SET.has(s)) return s;
+  const a = TICKET_STATUS_ALIASES[s];
+  return a && TICKET_STATUS_SET.has(a) ? a : "";
+}
+
+/**
+ * Valide le statut, applique règles demandeur vs staff, horodatages resolvedAt / closedAt.
+ * @returns {{ error: string, detail?: string } | null}
+ */
+function validateAndApplyTicketWorkflow(merged, base, existing, profileRole) {
+  const prevNorm = existing ? normalizeTicketStatus(base.status) : "open";
+  const rawNext =
+    merged.status !== undefined && merged.status !== null && merged.status !== ""
+      ? merged.status
+      : existing
+        ? base.status
+        : "open";
+  const nextNorm = normalizeTicketStatus(rawNext);
+  if (!nextNorm) {
+    return { error: "invalid_ticket_status", detail: String(merged.status ?? "") };
+  }
+  merged.status = nextNorm;
+
+  if (profileRole === "user") {
+    if (!existing) {
+      if (nextNorm !== "open") {
+        return { error: "invalid_ticket_status", detail: "New tickets must start as open." };
+      }
+    } else if (nextNorm !== prevNorm) {
+      return { error: "status_forbidden", detail: "Only staff may change ticket status." };
+    }
+    const dOld = String(ticketPayloadDepartment(base)).trim().toLowerCase();
+    const dNew = String(ticketPayloadDepartment(merged)).trim().toLowerCase();
+    if (existing && dOld !== dNew) {
+      return { error: "department_change_forbidden", detail: "Only staff may change department." };
+    }
+    merged.resolvedAt = base.resolvedAt ?? merged.resolvedAt ?? null;
+    merged.closedAt = base.closedAt ?? merged.closedAt ?? null;
+    return null;
+  }
+
+  const staff = profileRole === "admin" || profileRole === "agent";
+  if (!staff) {
+    merged.resolvedAt = base.resolvedAt ?? merged.resolvedAt ?? null;
+    merged.closedAt = base.closedAt ?? merged.closedAt ?? null;
+    return null;
+  }
+
+  const terminal = nextNorm === "resolved" || nextNorm === "closed";
+  if (terminal) {
+    if (!merged.resolvedAt) merged.resolvedAt = base.resolvedAt || new Date().toISOString();
+    if (nextNorm === "closed") {
+      if (!merged.closedAt) merged.closedAt = base.closedAt || new Date().toISOString();
+    } else {
+      merged.closedAt = null;
+    }
+  } else {
+    merged.resolvedAt = null;
+    merged.closedAt = null;
+  }
+  return null;
+}
+
 function diaTicketRowToAppTicket(row) {
   const p = row.payload && typeof row.payload === "object" ? { ...row.payload } : {};
   if (row.id != null) p.id = row.id;
@@ -615,7 +696,7 @@ function computeStats(db) {
 
   const overdueTickets = tickets.filter((t) => {
     const status = String(t?.status || "").toLowerCase();
-    if (status === "resolved") return false;
+    if (status === "resolved" || status === "closed") return false;
     const created = parseDateSafe(t?.createdAt || t?.openedAt || t?.date);
     if (!created) {
       const s1 = String(t?.slaStatus || "").toLowerCase();
@@ -630,8 +711,13 @@ function computeStats(db) {
   return {
     openTickets: tickets.filter((t) => String(t?.status || "").toLowerCase() === "open").length,
     pendingTickets: tickets.filter((t) => {
-      const s = String(t?.status || "").toLowerCase();
-      return s === "pending" || s === "in-progress" || s === "in_progress";
+      const s = String(t?.status || "").toLowerCase().replace(/_/g, "-");
+      return (
+        s === "pending" ||
+        s === "pending-requester" ||
+        s === "in-progress" ||
+        s === "in_progress"
+      );
     }).length,
     overdueTickets,
     totalDevices: inv.length,
@@ -1109,6 +1195,14 @@ app.post("/api/tickets-rls", async (req, res) => {
         detail: "You cannot modify this ticket (department scope).",
       });
     }
+  }
+
+  const wfErr = validateAndApplyTicketWorkflow(merged, base, existing, profileRole);
+  if (wfErr) {
+    return res.status(wfErr.error === "status_forbidden" || wfErr.error === "department_change_forbidden" ? 403 : 400).json({
+      error: wfErr.error,
+      detail: wfErr.detail || "",
+    });
   }
 
   let created_by = existing ? existing.created_by : uid;
