@@ -16,6 +16,39 @@
     { file: "it-analytics.html", label: "IT Analytics" },
   ];
 
+  function getDemandeurAllowedPages() {
+    const arr = global.DIATECH_USER_ROLE_PAGES;
+    if (Array.isArray(arr) && arr.length) return arr.map((x) => String(x));
+    return PAGE_OPTIONS.map((p) => p.file).filter(
+      (f) => !["inventory.html", "it-analytics.html"].includes(String(f).toLowerCase())
+    );
+  }
+
+  function getSelectedRole() {
+    if (document.getElementById("ue-role-admin-radio")?.checked) return "admin";
+    if (document.getElementById("ue-role-user")?.checked) return "user";
+    return "agent";
+  }
+
+  /** @returns {string|null} message d’erreur */
+  function validateUserDepartmentForSave(role) {
+    if (role !== "user") return null;
+    const scope = readDepartmentScopeFromForm();
+    if (scope == null || !Array.isArray(scope) || scope.length === 0) {
+      return "Pour un demandeur, choisissez au moins un département (décochez « All departments » et cochez les services concernés).";
+    }
+    return null;
+  }
+
+  function applyDemandeurPagesToForm() {
+    const allowed = new Set(getDemandeurAllowedPages().map((x) => String(x).toLowerCase()));
+    PAGE_OPTIONS.forEach((p) => {
+      const el = document.getElementById("ue-page-" + p.file.replace(/\./g, "-"));
+      if (!el) return;
+      el.checked = allowed.has(String(p.file).toLowerCase());
+    });
+  }
+
   let _remoteUsers = [];
   let _remoteLoadError = "";
 
@@ -250,21 +283,31 @@
     document.getElementById("ue-name").value = u.name || "";
     document.getElementById("ue-active").checked = !!u.active;
     const isAdmin = u.roles && u.roles.includes("admin");
-    document.getElementById("ue-role-admin").checked = isAdmin;
+    const isUserOnly = u.roles && u.roles.includes("user") && !u.roles.includes("agent") && !isAdmin;
+    const roleKey = isAdmin ? "admin" : isUserOnly ? "user" : "agent";
+    const radAdm = document.getElementById("ue-role-admin-radio");
+    const radUser = document.getElementById("ue-role-user");
+    const radAgent = document.getElementById("ue-role-agent");
+    if (radAdm) radAdm.checked = roleKey === "admin";
+    if (radUser) radUser.checked = roleKey === "user";
+    if (radAgent) radAgent.checked = roleKey === "agent";
     const meId = remote && DB.session && DB.session.supabaseUserId === u.id;
     const meLegacy = !remote && me && u.id === me.id;
-    document.getElementById("ue-role-admin").disabled = meId || meLegacy;
+    document.querySelectorAll('input[name="ue-role"]').forEach((el) => {
+      el.disabled = meId || meLegacy;
+    });
     document.getElementById("ue-active").disabled = meId || meLegacy;
 
-    const eff =
-      typeof getEffectiveAllowedPages === "function" && !isAdmin
-        ? getEffectiveAllowedPages({ ...u, allowedPages: u.allowedPages })
-        : PAGE_OPTIONS.map((p) => p.file);
     PAGE_OPTIONS.forEach((p) => {
       const el = document.getElementById("ue-page-" + p.file.replace(/\./g, "-"));
       if (!el) return;
       if (isAdmin) {
         el.checked = true;
+        return;
+      }
+      if (isUserOnly) {
+        const allowed = new Set(getDemandeurAllowedPages().map((x) => String(x).toLowerCase()));
+        el.checked = allowed.has(String(p.file).toLowerCase());
         return;
       }
       const ap = u.allowedPages;
@@ -282,7 +325,7 @@
     document.getElementById("ue-modal-title").textContent = remote ? "Edit user" : u.managed ? "Edit agent" : "Edit user";
     document.getElementById("ue-error").textContent = "";
     setPasswordRows("edit");
-    syncPagesBoxForRole();
+    syncRoleDependentUi();
     modal.classList.add("open");
   }
 
@@ -290,16 +333,58 @@
     document.getElementById("user-edit-modal")?.classList.remove("open");
   }
 
-  function syncPagesBoxForRole() {
-    const box = document.getElementById("ue-pages-box");
-    if (!box) return;
-    const isAdm = !!document.getElementById("ue-role-admin")?.checked;
-    box.style.opacity = isAdm ? "0.5" : "1";
-    box.style.pointerEvents = isAdm ? "none" : "auto";
+  function syncRoleDependentUi() {
+    const role = getSelectedRole();
+    const hint = document.getElementById("ue-role-user-hint");
+    if (hint) hint.style.display = role === "user" ? "block" : "none";
+
+    const pagesBox = document.getElementById("ue-pages-box");
     const deptBox = document.getElementById("ue-departments-scope-box");
+    const capBox = document.getElementById("ue-capabilities-box");
+    const allEl = document.getElementById("ue-departments-all");
+
+    const isAdmin = role === "admin";
+    const isUser = role === "user";
+
+    if (pagesBox) {
+      pagesBox.style.opacity = isAdmin || isUser ? "0.5" : "1";
+      pagesBox.style.pointerEvents = isAdmin || isUser ? "none" : "auto";
+    }
+    if (isUser) applyDemandeurPagesToForm();
+
     if (deptBox) {
-      deptBox.style.opacity = isAdm ? "0.5" : "1";
-      deptBox.style.pointerEvents = isAdm ? "none" : "auto";
+      deptBox.style.opacity = isAdmin ? "0.5" : "1";
+      deptBox.style.pointerEvents = isAdmin ? "none" : "auto";
+    }
+
+    if (allEl) {
+      if (isAdmin) {
+        allEl.disabled = true;
+        allEl.checked = true;
+      } else if (isUser) {
+        const hadAll = allEl.checked;
+        allEl.checked = false;
+        allEl.disabled = true;
+        const checkboxes = Array.from(document.querySelectorAll("[data-ue-dept-name]"));
+        const anyChecked = checkboxes.some((cb) => cb.checked);
+        if (hadAll && checkboxes.length) checkboxes.forEach((cb) => { cb.checked = true; });
+        else if (!anyChecked && checkboxes.length) checkboxes[0].checked = true;
+      } else {
+        allEl.disabled = false;
+      }
+    }
+
+    if (capBox) {
+      capBox.style.opacity = isUser ? "0.5" : "1";
+      capBox.style.pointerEvents = isUser ? "none" : "auto";
+    }
+    if (isUser) {
+      const fa = document.getElementById("ue-f-assignee");
+      const fe = document.getElementById("ue-f-export");
+      const fd = document.getElementById("ue-f-departments");
+      if (fa) fa.checked = false;
+      if (fe) fe.checked = false;
+      if (fd) fd.checked = false;
     }
   }
 
@@ -314,15 +399,37 @@
     return files;
   }
 
-  function buildAppAccessPayload(isAdmin) {
+  function buildAppAccessPayload(role) {
+    if (role === "admin") {
+      return {
+        restrictions: {
+          canBeAssignee: document.getElementById("ue-f-assignee").checked,
+          canExportReports: document.getElementById("ue-f-export").checked,
+          canManageDepartments: document.getElementById("ue-f-departments").checked,
+        },
+        allowedPages: null,
+        allowedDepartmentNames: null,
+      };
+    }
+    if (role === "user") {
+      return {
+        restrictions: {
+          canBeAssignee: false,
+          canExportReports: false,
+          canManageDepartments: false,
+        },
+        allowedPages: getDemandeurAllowedPages(),
+        allowedDepartmentNames: readDepartmentScopeFromForm(),
+      };
+    }
     return {
       restrictions: {
         canBeAssignee: document.getElementById("ue-f-assignee").checked,
         canExportReports: document.getElementById("ue-f-export").checked,
         canManageDepartments: document.getElementById("ue-f-departments").checked,
       },
-      allowedPages: isAdmin ? null : readPagesFromForm(false),
-      allowedDepartmentNames: isAdmin ? null : readDepartmentScopeFromForm(),
+      allowedPages: readPagesFromForm(false),
+      allowedDepartmentNames: readDepartmentScopeFromForm(),
     };
   }
 
@@ -332,18 +439,7 @@
     const email = document.getElementById("ue-email").value.trim().toLowerCase();
     const name = document.getElementById("ue-name").value.trim();
     const active = document.getElementById("ue-active").checked;
-    const wantAdmin = document.getElementById("ue-role-admin").checked;
-    let role = "agent";
-    if (wantAdmin) role = "admin";
-    else if (
-      prev &&
-      Array.isArray(prev.roles) &&
-      prev.roles.includes("user") &&
-      !prev.roles.includes("agent") &&
-      !prev.roles.includes("admin")
-    ) {
-      role = "user";
-    }
+    const role = getSelectedRole();
     const newPw = document.getElementById("ue-new-password")?.value || "";
 
     if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
@@ -358,13 +454,18 @@
       err.textContent = "New password must meet server policy (min. 12 chars, letter + digit by default).";
       return;
     }
+    const deptErr = validateUserDepartmentForSave(role);
+    if (deptErr) {
+      err.textContent = deptErr;
+      return;
+    }
 
     const body = {
       email,
       display_name: name,
       active,
       role,
-      app_access: buildAppAccessPayload(wantAdmin),
+      app_access: buildAppAccessPayload(role),
     };
     if (newPw.length >= 12) body.password = newPw;
 
@@ -401,7 +502,7 @@
     const email = document.getElementById("ue-email").value.trim();
     const name = document.getElementById("ue-name").value.trim();
     const active = document.getElementById("ue-active").checked;
-    const wantAdmin = document.getElementById("ue-role-admin").checked;
+    const role = getSelectedRole();
 
     if (!username || !name) {
       err.textContent = "Username and display name are required.";
@@ -413,25 +514,34 @@
       return;
     }
 
+    const deptErr = validateUserDepartmentForSave(role);
+    if (deptErr) {
+      err.textContent = deptErr;
+      return;
+    }
+
     if (id === me?.id) {
       if (!active) {
         err.textContent = "You cannot deactivate your own account.";
         return;
       }
-      if (!wantAdmin && me.roles?.includes("admin")) {
+      if (role !== "admin" && me.roles?.includes("admin")) {
         err.textContent = "You cannot remove your own admin role.";
         return;
       }
     }
 
-    const roles = wantAdmin ? ["agent", "admin"] : ["agent"];
-    const isAdmin = wantAdmin;
+    const roles = role === "admin" ? ["agent", "admin"] : role === "user" ? ["user"] : ["agent"];
+    const isAdmin = role === "admin";
 
-    const restrictions = {
-      canBeAssignee: document.getElementById("ue-f-assignee").checked,
-      canExportReports: document.getElementById("ue-f-export").checked,
-      canManageDepartments: document.getElementById("ue-f-departments").checked,
-    };
+    const restrictions =
+      role === "user"
+        ? { canBeAssignee: false, canExportReports: false, canManageDepartments: false }
+        : {
+            canBeAssignee: document.getElementById("ue-f-assignee").checked,
+            canExportReports: document.getElementById("ue-f-export").checked,
+            canManageDepartments: document.getElementById("ue-f-departments").checked,
+          };
 
     const patch = {
       id,
@@ -445,8 +555,10 @@
       allowedDepartmentNames: isAdmin ? null : readDepartmentScopeFromForm(),
     };
 
-    if (isAdmin) {
+    if (role === "admin") {
       patch.allowedPages = null;
+    } else if (role === "user") {
+      patch.allowedPages = getDemandeurAllowedPages();
     } else {
       patch.allowedPages = readPagesFromForm(false);
     }
@@ -471,8 +583,15 @@
     document.getElementById("ue-email").readOnly = false;
     document.getElementById("ue-name").value = "";
     document.getElementById("ue-active").checked = true;
-    document.getElementById("ue-role-admin").checked = false;
-    document.getElementById("ue-role-admin").disabled = false;
+    const radAdm = document.getElementById("ue-role-admin-radio");
+    const radUser = document.getElementById("ue-role-user");
+    const radAgent = document.getElementById("ue-role-agent");
+    if (radAdm) radAdm.checked = false;
+    if (radUser) radUser.checked = false;
+    if (radAgent) radAgent.checked = true;
+    document.querySelectorAll('input[name="ue-role"]').forEach((el) => {
+      el.disabled = false;
+    });
     document.getElementById("ue-active").disabled = false;
     PAGE_OPTIONS.forEach((p) => {
       const el = document.getElementById("ue-page-" + p.file.replace(/\./g, "-"));
@@ -484,7 +603,7 @@
     setDepartmentScopeOnForm(null);
     document.getElementById("ue-error").textContent = "";
     setPasswordRows("create");
-    syncPagesBoxForRole();
+    syncRoleDependentUi();
     modal.classList.add("open");
   }
 
@@ -494,8 +613,7 @@
     const name = document.getElementById("ue-name").value.trim();
     const password = document.getElementById("ue-password")?.value || "";
     const invite = document.getElementById("ue-invite-email")?.checked !== false;
-    const wantAdmin = document.getElementById("ue-role-admin").checked;
-    const role = wantAdmin ? "admin" : "agent";
+    const role = getSelectedRole();
 
     if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
       err.textContent = "Valid email is required.";
@@ -510,13 +628,18 @@
         "Password must meet server policy (min. 12 characters, at least one letter and one digit), or use email invitation.";
       return;
     }
+    const deptErr = validateUserDepartmentForSave(role);
+    if (deptErr) {
+      err.textContent = deptErr;
+      return;
+    }
 
     const body = {
       email,
       display_name: name,
       role,
       active: true,
-      app_access: buildAppAccessPayload(wantAdmin),
+      app_access: buildAppAccessPayload(role),
     };
     if (invite) body.invite = true;
     else body.password = password;
@@ -552,15 +675,23 @@
     }
 
     const id = typeof nextUserId === "function" ? nextUserId() : DB.users.length + 100;
-    const wantAdmin = document.getElementById("ue-role-admin").checked;
-    const roles = wantAdmin ? ["agent", "admin"] : ["agent"];
-    const isAdmin = wantAdmin;
+    const role = getSelectedRole();
+    const deptErr = validateUserDepartmentForSave(role);
+    if (deptErr) {
+      err.textContent = deptErr;
+      return;
+    }
+    const roles = role === "admin" ? ["agent", "admin"] : role === "user" ? ["user"] : ["agent"];
+    const isAdmin = role === "admin";
 
-    const restrictions = {
-      canBeAssignee: document.getElementById("ue-f-assignee").checked,
-      canExportReports: document.getElementById("ue-f-export").checked,
-      canManageDepartments: document.getElementById("ue-f-departments").checked,
-    };
+    const restrictions =
+      role === "user"
+        ? { canBeAssignee: false, canExportReports: false, canManageDepartments: false }
+        : {
+            canBeAssignee: document.getElementById("ue-f-assignee").checked,
+            canExportReports: document.getElementById("ue-f-export").checked,
+            canManageDepartments: document.getElementById("ue-f-departments").checked,
+          };
 
     const user = {
       id,
@@ -574,7 +705,8 @@
       authProvider: null,
       managed: true,
       restrictions,
-      allowedPages: isAdmin ? null : readPagesFromForm(false),
+      allowedPages:
+        role === "admin" ? null : role === "user" ? getDemandeurAllowedPages() : readPagesFromForm(false),
       allowedDepartmentNames: isAdmin ? null : readDepartmentScopeFromForm(),
     };
 
@@ -696,7 +828,9 @@
       if (id) saveModal();
       else saveCreate();
     });
-    document.getElementById("ue-role-admin")?.addEventListener("change", syncPagesBoxForRole);
+    document.querySelectorAll('input[name="ue-role"]').forEach((el) => {
+      el.addEventListener("change", syncRoleDependentUi);
+    });
   }
 
   global.UsersAdmin = { init, renderTable, refreshRemoteUsers, loadAdminAudit };

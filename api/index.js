@@ -577,6 +577,35 @@ function profileAllowsDepartmentAccess(profileRow, role, deptName) {
   return names.some((n) => String(n).trim().toLowerCase() === d);
 }
 
+/** Demandeur : au moins un département dans app_access (visibilité + tickets). */
+function validateEndUserDepartmentScope(role, appAccess) {
+  if (role !== "user") return null;
+  const names = appAccess?.allowedDepartmentNames;
+  if (names == null || names === undefined) {
+    return {
+      error: "user_department_required",
+      detail: "End-user accounts require at least one department in app_access.allowedDepartmentNames.",
+    };
+  }
+  if (!Array.isArray(names) || names.length === 0) {
+    return {
+      error: "user_department_required",
+      detail: "Select at least one department for this requester profile.",
+    };
+  }
+  return null;
+}
+
+/** Si un seul département autorisé et champ vide, appliquer sur le payload ticket (demandeur). */
+function applyDefaultDepartmentForUserRequester(merged, profileRow, profileRole) {
+  if (profileRole !== "user") return;
+  const names = profileRow?.app_access?.allowedDepartmentNames;
+  if (!Array.isArray(names) || names.length !== 1) return;
+  const cur = String(ticketPayloadDepartment(merged)).trim();
+  if (cur) return;
+  merged.department = String(names[0]).trim();
+}
+
 async function resolveTicketsRlsContext(req, res) {
   const authHeader = req.headers.authorization;
   if (!authHeader || !String(authHeader).toLowerCase().startsWith("bearer ")) {
@@ -913,6 +942,8 @@ app.post("/api/admin/users", async (req, res) => {
   }
 
   const appAccess = mergeAppAccess(null, body.app_access || {});
+  const deptErr = validateEndUserDepartmentScope(role, appAccess);
+  if (deptErr) return res.status(400).json(deptErr);
   let uid;
   let authUser;
 
@@ -1042,6 +1073,14 @@ app.patch("/api/admin/users/:id", async (req, res) => {
     const cur = existingProf?.app_access || {};
     profPatch.app_access = mergeAppAccess(cur, body.app_access);
   }
+  const finalRole = profPatch.role || prevRole;
+  const finalAccess = profPatch.app_access
+    ? profPatch.app_access
+    : existingProf?.app_access && typeof existingProf.app_access === "object"
+      ? existingProf.app_access
+      : {};
+  const deptErrPatch = validateEndUserDepartmentScope(finalRole, finalAccess);
+  if (deptErrPatch) return res.status(400).json(deptErrPatch);
   if (Object.keys(profPatch).length) {
     profPatch.id = targetId;
     if (!existingProf && !profPatch.role) profPatch.role = newRole || "user";
@@ -1310,6 +1349,8 @@ app.post("/api/tickets-rls", async (req, res) => {
   const base = existing?.payload && typeof existing.payload === "object" ? { ...existing.payload } : {};
   const merged = { ...base, ...stripTicketTransportFields(body) };
   merged.id = id;
+
+  applyDefaultDepartmentForUserRequester(merged, profileRow, profileRole);
 
   const deptMerged = ticketPayloadDepartment(merged);
   if (!profileAllowsDepartmentAccess(profileRow, profileRole, deptMerged)) {

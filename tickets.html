@@ -114,7 +114,7 @@
       <h1 class="page-title">Tickets</h1>
     </div>
     <div class="topbar-right header-right">
-      <button class="btn-primary" onclick="document.getElementById('new-ticket-modal').classList.add('open')">
+      <button type="button" class="btn-primary" onclick="openNewTicketModal()">
         <svg viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
         New Ticket
       </button>
@@ -526,6 +526,36 @@ function escDeptOpt(s) {
     .replace(/</g, '&lt;');
 }
 
+function configureNewTicketDepartmentSelect() {
+  const sel = document.getElementById('nt-department');
+  if (!sel) return;
+  const allNames = (Array.isArray(DB.departments) ? DB.departments : []).map((d) => d.name).filter(Boolean);
+  const u = typeof getCurrentUser === 'function' ? getCurrentUser() : null;
+  const scope = u && u.allowedDepartmentNames;
+  let allowed = allNames;
+  if (Array.isArray(scope) && scope.length > 0) {
+    const set = new Set(scope.map((s) => String(s).trim().toLowerCase()));
+    allowed = allNames.filter((n) => set.has(String(n).trim().toLowerCase()));
+  }
+  const prev = sel.value;
+  sel.innerHTML =
+    '<option value="">— Select —</option>' + allowed.map((n) => `<option value="${escDeptOpt(n)}">${escDeptOpt(n)}</option>`).join('');
+  sel.disabled = false;
+  sel.removeAttribute('title');
+  if (allowed.length === 1) {
+    sel.value = allowed[0];
+    sel.disabled = true;
+    sel.title = 'Département défini par votre profil';
+  } else if (prev && [...sel.options].some((o) => o.value === prev)) {
+    sel.value = prev;
+  }
+}
+
+function openNewTicketModal() {
+  configureNewTicketDepartmentSelect();
+  document.getElementById('new-ticket-modal')?.classList.add('open');
+}
+
 function fillDepartmentSelects() {
   const names = (Array.isArray(DB.departments) ? DB.departments : []).map((d) => d.name).filter(Boolean);
   const fill = (id, prefixHtml) => {
@@ -536,8 +566,8 @@ function fillDepartmentSelects() {
     if ([...el.options].some((o) => o.value === v)) el.value = v;
   };
   fill('filter-department', '<option value="">All departments</option>');
-  fill('nt-department', '<option value="">— Select —</option>');
   fill('et-department', '<option value="">— None —</option>');
+  configureNewTicketDepartmentSelect();
 }
 
 function priorityBadge(p) {
@@ -995,8 +1025,7 @@ window.submitNewTicket = async function() {
   if (typeof window.diatechNotifyDataChanged === 'function') window.diatechNotifyDataChanged('tickets');
   document.getElementById('new-ticket-modal').classList.remove('open');
   document.getElementById('nt-title').value = '';
-  const ntDept = document.getElementById('nt-department');
-  if (ntDept) ntDept.value = '';
+  configureNewTicketDepartmentSelect();
   renderTickets();
 };
 

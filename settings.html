@@ -313,9 +313,25 @@ window.__diatechAuthGuardPromise = Auth.guard().catch(function (e) { console.err
       <div><div class="toggle-label">Account active</div><div class="toggle-sub">Inactive users cannot sign in</div></div>
       <label class="toggle"><input type="checkbox" id="ue-active" checked/><span class="toggle-slider"></span></label>
     </div>
-    <div class="toggle-row">
-      <div><div class="toggle-label">Administrator</div><div class="toggle-sub">Full access including this screen</div></div>
-      <label class="toggle"><input type="checkbox" id="ue-role-admin"/><span class="toggle-slider"></span></label>
+    <div class="ue-row" id="ue-role-box">
+      <label>Rôle</label>
+      <div class="ue-pages-grid" style="grid-template-columns:1fr;gap:8px">
+        <label class="ue-page-item" style="margin:0">
+          <input type="radio" name="ue-role" id="ue-role-user" value="user"/>
+          <span>Demandeur (utilisateur) — tickets et suivi, périmètre par département</span>
+        </label>
+        <label class="ue-page-item" style="margin:0">
+          <input type="radio" name="ue-role" id="ue-role-agent" value="agent" checked/>
+          <span>Agent TI</span>
+        </label>
+        <label class="ue-page-item" style="margin:0">
+          <input type="radio" name="ue-role" id="ue-role-admin-radio" value="admin"/>
+          <span>Administrateur</span>
+        </label>
+      </div>
+      <p class="ue-hint" id="ue-role-user-hint" style="display:none;margin-top:8px">
+        Obligatoire : décochez « All departments » et cochez au moins un département. Le demandeur ne verra que les tickets de ces services (et les siens).
+      </p>
     </div>
     <div class="ue-row" id="ue-pages-box">
       <label>Module access</label>
@@ -336,9 +352,9 @@ window.__diatechAuthGuardPromise = Auth.guard().catch(function (e) { console.err
       <label>Department scope</label>
       <label class="ue-page-item" style="margin-bottom:8px"><input type="checkbox" id="ue-departments-all" checked/><span>All departments</span></label>
       <div class="ue-pages-grid" id="ue-departments-grid"></div>
-      <p class="ue-hint">Uncheck “All departments” to limit ticket visibility by service (client-side helper <code>userMaySeeDepartment</code>).</p>
+      <p class="ue-hint">Pour les agents : limite la visibilité des tickets par service. Pour les <strong>demandeurs</strong> : obligatoire (au moins un département). L’API <code>/api/tickets-rls</code> applique le même filtre.</p>
     </div>
-    <div class="form-group" style="padding:16px;margin-bottom:0;box-shadow:none">
+    <div class="form-group" id="ue-capabilities-box" style="padding:16px;margin-bottom:0;box-shadow:none">
       <h3 style="font-size:14px;margin-bottom:12px">Capabilities</h3>
       <div class="toggle-row"><div><div class="toggle-label">Can be ticket assignee</div><div class="toggle-sub">Show in assignee lists</div></div><label class="toggle"><input type="checkbox" id="ue-f-assignee" checked/><span class="toggle-slider"></span></label></div>
       <div class="toggle-row"><div><div class="toggle-label">Export reports</div><div class="toggle-sub">Allow export-related actions</div></div><label class="toggle"><input type="checkbox" id="ue-f-export" checked/><span class="toggle-slider"></span></label></div>

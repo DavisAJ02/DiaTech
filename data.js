@@ -355,6 +355,9 @@ if (typeof window !== "undefined") {
 const USER_ROLE_PAGES = DEFAULT_AGENT_PAGES.filter((f) =>
   !PROFILE_USER_EXCLUDED_PAGES.includes(String(f).toLowerCase())
 );
+if (typeof window !== "undefined") {
+  window.DIATECH_USER_ROLE_PAGES = USER_ROLE_PAGES.slice();
+}
 
 const INVENTORY_STORAGE_KEY = "nexusops_inventory_v2";
 
