@@ -49,6 +49,7 @@
 <script src="ticket-workflow.js"></script>
 <script src="auth.js"></script>
 <script src="data-sync.js"></script>
+<script src="ticket-notifications.js"></script>
 <script src="api-client.js"></script>
 
 <aside class="sidebar">
@@ -119,7 +120,7 @@
       </button>
       <button class="icon-btn" id="notif-btn" type="button" aria-label="Notifications">
         <svg viewBox="0 0 24 24"><path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9M13.73 21a2 2 0 01-3.46 0"/></svg>
-        <span class="badge notification-badge">3</span>
+        <span class="badge notification-badge" id="notif-badge">0</span>
       </button>
     </div>
   </header>
@@ -431,6 +432,13 @@ function syncTicketsState(list) {
   DB.tickets = ticketsStore;
 }
 
+function ticketNotifAfterHydrate() {
+  if (typeof DiaTechTicketNotifications === 'undefined') return;
+  const list = Array.isArray(DB.tickets) ? DB.tickets : [];
+  DiaTechTicketNotifications.processTickets(list);
+  DiaTechTicketNotifications.syncBadge();
+}
+
 function apiErrorUserMessage(res, fallbackLabel) {
   if (res.status === 0) {
     const hint =
@@ -455,39 +463,46 @@ async function ticketsRlsMode() {
 }
 
 async function hydrateTicketsFromApi() {
-  if (typeof ApiClient === 'undefined') return;
-  const localTickets = Array.isArray(DB.tickets) ? DB.tickets.slice() : [];
-
-  if (await ticketsRlsMode()) {
-    const res = await ApiClient.getTicketsRls();
-    if (res.ok && Array.isArray(res.data)) {
-      const { normalized } = ensureTicketDateFields(res.data);
-      syncTicketsState(normalized);
-      return;
-    }
-    if (!res.ok) {
-      console.warn('[DiaTech] tickets-rls:', res.status, res.data);
-    }
+  if (typeof ApiClient === 'undefined') {
+    ticketNotifAfterHydrate();
     return;
   }
+  const localTickets = Array.isArray(DB.tickets) ? DB.tickets.slice() : [];
 
-  const remote = await ApiClient.getTickets();
-  if (!Array.isArray(remote)) return;
-  if (remote.length === 0 && localTickets.length > 0) {
-    await ApiClient.bootstrap({ tickets: localTickets });
-    const remoteAfterBootstrap = await ApiClient.getTickets();
-    if (Array.isArray(remoteAfterBootstrap)) {
-      syncTicketsState(remoteAfterBootstrap);
+  try {
+    if (await ticketsRlsMode()) {
+      const res = await ApiClient.getTicketsRls();
+      if (res.ok && Array.isArray(res.data)) {
+        const { normalized } = ensureTicketDateFields(res.data);
+        syncTicketsState(normalized);
+        return;
+      }
+      if (!res.ok) {
+        console.warn('[DiaTech] tickets-rls:', res.status, res.data);
+      }
       return;
     }
-  }
-  const source = remote.length ? remote : localTickets;
-  const { normalized, changed } = ensureTicketDateFields(source);
-  syncTicketsState(normalized);
-  if (changed) {
-    normalized.forEach((t) => {
-      void ApiClient.upsertTicket(t);
-    });
+
+    const remote = await ApiClient.getTickets();
+    if (!Array.isArray(remote)) return;
+    if (remote.length === 0 && localTickets.length > 0) {
+      await ApiClient.bootstrap({ tickets: localTickets });
+      const remoteAfterBootstrap = await ApiClient.getTickets();
+      if (Array.isArray(remoteAfterBootstrap)) {
+        syncTicketsState(remoteAfterBootstrap);
+        return;
+      }
+    }
+    const source = remote.length ? remote : localTickets;
+    const { normalized, changed } = ensureTicketDateFields(source);
+    syncTicketsState(normalized);
+    if (changed) {
+      normalized.forEach((t) => {
+        void ApiClient.upsertTicket(t);
+      });
+    }
+  } finally {
+    ticketNotifAfterHydrate();
   }
 }
 
@@ -1015,6 +1030,18 @@ void (async function bootTicketsPage() {
   } catch (e) {
     console.error(e);
   }
+  window.diatechRenderNotifPanel = function () {
+    if (typeof DiaTechTicketNotifications !== 'undefined') DiaTechTicketNotifications.renderIntoList();
+  };
+  window.diatechOnTicketNotifMarkAllRead = function () {
+    if (typeof DiaTechTicketNotifications !== 'undefined') {
+      DiaTechTicketNotifications.renderIntoList();
+      DiaTechTicketNotifications.syncBadge();
+    }
+  };
+  if (typeof DiaTechTicketNotifications !== 'undefined') {
+    DiaTechTicketNotifications.init({ wireClick: true });
+  }
   fillAssigneeSelect();
   fillEditStatusSelectForOpenTicket({ status: 'open' });
   fillDepartmentSelects();
@@ -1025,6 +1052,13 @@ void (async function bootTicketsPage() {
   renderTickets();
   if (typeof Auth !== 'undefined' && Auth.enhanceUI) Auth.enhanceUI();
 })();
+
+window.addEventListener('diatech:data-changed', (ev) => {
+  const r = ev && ev.detail && ev.detail.reason;
+  if (r === 'tickets') {
+    void hydrateTicketsFromApi().then(() => renderTickets());
+  }
+});
 document.getElementById('nt-submit')?.addEventListener('click', () => void submitNewTicket());
 document.getElementById('et-submit')?.addEventListener('click', () => void saveEditTicket());
 document.getElementById('et-status')?.addEventListener('change', () => {

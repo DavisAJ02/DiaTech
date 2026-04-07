@@ -95,7 +95,7 @@
       </button>
       <button class="icon-btn" id="notif-btn">
         <svg viewBox="0 0 24 24"><path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9M13.73 21a2 2 0 01-3.46 0"/></svg>
-        <span class="badge notification-badge" id="notif-badge">3</span>
+        <span class="badge notification-badge" id="notif-badge">0</span>
       </button></div>
   </header>
 
@@ -457,8 +457,14 @@
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.2/dist/chart.umd.min.js"></script>
 <script src="data-sync.js"></script>
 <script src="api-client.js"></script>
+<script src="ticket-notifications.js"></script>
 <script src="dashboard.js"></script>
-<script>Auth.enhanceUI();</script>
+<script>
+  if (typeof DiaTechTicketNotifications !== 'undefined') {
+    DiaTechTicketNotifications.init({ wireClick: false });
+  }
+  Auth.enhanceUI();
+</script>
 </body>
 </html>
 

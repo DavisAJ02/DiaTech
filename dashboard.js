@@ -1812,6 +1812,21 @@ function relTime(ts) {
 
 function rebuildLiveNotifications() {
   const items = [];
+  if (typeof DiaTechTicketNotifications !== 'undefined') {
+    const role = getDashboardRole();
+    const scoped = role === 'admin' ? getSafeTickets() : getDashboardTickets();
+    DiaTechTicketNotifications.processTickets(scoped);
+    const ticketFeed = DiaTechTicketNotifications.getPanelRenderSlice(12);
+    ticketFeed.forEach((n) => {
+      items.push({
+        id: n.id,
+        text: n.text,
+        time: n.time,
+        unread: n.unread,
+        href: n.href,
+      });
+    });
+  }
   const tickets = getDashboardRole() === 'admin' ? getSafeTickets() : getDashboardTickets();
   tickets
     .filter((t) => String(t?.priority || '').toLowerCase() === 'critical' && !isTicketResolvedDash(t))
@@ -1871,24 +1886,34 @@ function renderNotifPanel() {
   const list = document.getElementById('notif-list');
   if (!list) return;
   list.innerHTML = notifications
-    .map(
-      (n) => `
-    <div class="notif-item ${n.unread ? 'unread' : ''}">
+    .map((n) => {
+      const hrefAttr = n.href
+        ? ` data-href="${dashEscapeHtml(String(n.href))}" style="cursor:pointer"`
+        : '';
+      return `
+    <div class="notif-item ${n.unread ? 'unread' : ''}"${hrefAttr}>
       ${n.unread ? '<div class="notif-dot"></div>' : '<div style="width:8px;flex-shrink:0"></div>'}
       <div>
-        <div class="notif-text">${n.text}</div>
-        <div class="notif-time">${n.time}</div>
+        <div class="notif-text">${dashEscapeHtml(String(n.text || ''))}</div>
+        <div class="notif-time">${dashEscapeHtml(String(n.time || ''))}</div>
       </div>
     </div>
-  `
-    )
+  `;
+    })
     .join('');
+  list.querySelectorAll('.notif-item[data-href]').forEach((el) => {
+    el.addEventListener('click', () => {
+      const h = el.getAttribute('data-href');
+      if (h) window.location.href = h;
+    });
+  });
 }
 
 rebuildLiveNotifications();
 syncNotifBadge();
 
 document.getElementById('notif-btn')?.addEventListener('click', () => {
+  rebuildLiveNotifications();
   document.getElementById('notif-panel')?.classList.add('open');
   document.getElementById('notif-backdrop')?.classList.add('open');
   document.getElementById('notif-backdrop')?.setAttribute('aria-hidden', 'false');
@@ -1903,6 +1928,8 @@ document.getElementById('notif-backdrop')?.addEventListener('click', () => {
 
 document.getElementById('notif-clear')?.addEventListener('click', (e) => {
   e.stopPropagation();
+  if (typeof DiaTechTicketNotifications !== 'undefined') DiaTechTicketNotifications.markAllRead();
+  rebuildLiveNotifications();
   notifications.forEach((n) => {
     n.unread = false;
   });
