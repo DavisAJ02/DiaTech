@@ -105,6 +105,12 @@
     return r === "admin" || r === "agent";
   }
 
+  /** Notes internes sur ticket (Phase 2) — staff uniquement. */
+  function canAddInternalTicketNotes() {
+    syncCurrentUserRole();
+    return global.currentUserRole === "admin" || global.currentUserRole === "agent";
+  }
+
   global.RoleUi = {
     syncCurrentUserRole,
     hasRole,
@@ -115,5 +121,6 @@
     canAssignTickets,
     canUpdateTicketStatus,
     canEditTicketRoutingFields,
+    canAddInternalTicketNotes,
   };
 })(typeof window !== "undefined" ? window : this);

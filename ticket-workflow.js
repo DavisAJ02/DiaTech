@@ -1,6 +1,7 @@
 /**
- * DiaTech — cycle de vie des tickets (Phase 1).
- * Statuts canoniques : open → in-progress → pending-requester → resolved → closed
+ * DiaTech — cycle de vie des tickets (Phase 1–2).
+ * Statuts : open → in-progress → pending-requester → resolved → closed
+ * Phase 2 : le demandeur peut repasser en open / in-progress depuis pending-requester.
  */
 (function (global) {
   var STATUSES = ["open", "in-progress", "pending-requester", "resolved", "closed"];
@@ -59,6 +60,26 @@
     return n === "resolved" || n === "closed";
   }
 
+  var LEAVE_PENDING = ["open", "in-progress"];
+
+  function canUserLeavePendingStatus(nextRaw) {
+    var n = normalizeTicketStatus(nextRaw);
+    return n !== "" && LEAVE_PENDING.indexOf(n) >= 0;
+  }
+
+  /** Options du select statut pour le rôle demandeur (lecture seule sauf sortie de « waiting »). */
+  function getStatusSelectOptionsForRequester(currentRaw) {
+    var cur = normalizeTicketStatus(currentRaw || "open") || "open";
+    if (cur === "pending-requester") {
+      return [
+        { value: "pending-requester", label: LABELS["pending-requester"] + " (current)" },
+        { value: "open", label: "Open — information provided" },
+        { value: "in-progress", label: "In progress — resume work" },
+      ];
+    }
+    return [{ value: cur, label: statusLabel(cur) }];
+  }
+
   global.DiaTechTicketWorkflow = {
     STATUSES: STATUSES.slice(),
     normalizeTicketStatus: normalizeTicketStatus,
@@ -67,5 +88,7 @@
     statusLabel: statusLabel,
     getStatusSelectOptions: getStatusSelectOptions,
     isDoneTabStatus: isDoneTabStatus,
+    canUserLeavePendingStatus: canUserLeavePendingStatus,
+    getStatusSelectOptionsForRequester: getStatusSelectOptionsForRequester,
   };
 })(typeof window !== "undefined" ? window : globalThis);

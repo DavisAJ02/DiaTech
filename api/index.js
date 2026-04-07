@@ -166,11 +166,16 @@ function stripTicketTransportFields(body) {
   delete t.assigneeCleared;
   delete t.createdByAuthId;
   delete t.assignedToAuthId;
+  delete t.newPublicComment;
+  delete t.newInternalComment;
+  delete t.ticketComments;
   return t;
 }
 
-/** Phase 1 — statuts canoniques (aligné sur ticket-workflow.js). */
+/** Phase 1–2 — statuts canoniques (aligné sur ticket-workflow.js). */
 const TICKET_STATUSES_ORDER = ["open", "in-progress", "pending-requester", "resolved", "closed"];
+const TICKET_COMMENT_MAX_LEN = 8000;
+const TICKET_MAX_COMMENTS = 400;
 const TICKET_STATUS_SET = new Set(TICKET_STATUSES_ORDER);
 const TICKET_STATUS_ALIASES = {
   pending: "pending-requester",
@@ -216,7 +221,11 @@ function validateAndApplyTicketWorkflow(merged, base, existing, profileRole) {
         return { error: "invalid_ticket_status", detail: "New tickets must start as open." };
       }
     } else if (nextNorm !== prevNorm) {
-      return { error: "status_forbidden", detail: "Only staff may change ticket status." };
+      const canLeavePending =
+        prevNorm === "pending-requester" && (nextNorm === "open" || nextNorm === "in-progress");
+      if (!canLeavePending) {
+        return { error: "status_forbidden", detail: "Only staff may change ticket status." };
+      }
     }
     const dOld = String(ticketPayloadDepartment(base)).trim().toLowerCase();
     const dNew = String(ticketPayloadDepartment(merged)).trim().toLowerCase();
@@ -248,6 +257,59 @@ function validateAndApplyTicketWorkflow(merged, base, existing, profileRole) {
     merged.closedAt = null;
   }
   return null;
+}
+
+function sanitizeTicketCommentText(raw) {
+  if (raw == null) return "";
+  const s = String(raw).replace(/\r\n/g, "\n").trim();
+  if (!s) return "";
+  return s.length > TICKET_COMMENT_MAX_LEN ? s.slice(0, TICKET_COMMENT_MAX_LEN) : s;
+}
+
+function ticketCommentAuthorLabel(ctx) {
+  const row = ctx.profileRow;
+  const dn = row && String(row.display_name || "").trim();
+  if (dn) return dn;
+  const em = String(ctx.userEmail || "").trim();
+  if (em) return em;
+  return "User";
+}
+
+/**
+ * Append-only comments on payload.ticketComments (Phase 2).
+ * @returns {{ error: string, detail?: string } | null}
+ */
+function appendTicketCommentsFromBody(merged, body, profileRole, ctx) {
+  const pub = sanitizeTicketCommentText(body?.newPublicComment);
+  const internal = sanitizeTicketCommentText(body?.newInternalComment);
+  const staff = profileRole === "admin" || profileRole === "agent";
+  if (internal && !staff) {
+    return { error: "comment_forbidden", detail: "Internal notes are staff only." };
+  }
+  if (!pub && !internal) return null;
+  const baseList = Array.isArray(merged.ticketComments) ? merged.ticketComments : [];
+  const next = baseList.slice();
+  const at = new Date().toISOString();
+  const authorName = ticketCommentAuthorLabel(ctx);
+  const authorEmail = String(ctx.userEmail || "").trim();
+  if (pub) next.push({ kind: "public", body: pub, at, authorEmail, authorName });
+  if (internal) next.push({ kind: "internal", body: internal, at, authorEmail, authorName });
+  if (next.length > TICKET_MAX_COMMENTS) {
+    return { error: "comment_limit", detail: "Too many comments on this ticket." };
+  }
+  merged.ticketComments = next;
+  return null;
+}
+
+function sanitizeTicketPayloadForRole(ticket, profileRole) {
+  if (!ticket || typeof ticket !== "object") return ticket;
+  if (profileRole === "user" && Array.isArray(ticket.ticketComments)) {
+    return {
+      ...ticket,
+      ticketComments: ticket.ticketComments.filter((c) => c && c.kind === "public"),
+    };
+  }
+  return ticket;
 }
 
 function diaTicketRowToAppTicket(row) {
@@ -481,7 +543,8 @@ async function resolveTicketsRlsContext(req, res) {
     profileRole = (await fetchProfileRole(svc, uid)) || "user";
     profileRow = await fetchProfileRow(svc, uid);
   }
-  return { userClient, uid, token, svc, profileRow, profileRole };
+  const userEmail = String(userData.user.email || "").trim();
+  return { userClient, uid, token, svc, profileRow, profileRole, userEmail };
 }
 
 function profileMayAssignTickets(role) {
@@ -1156,7 +1219,7 @@ app.get("/api/tickets-rls", async (req, res) => {
       profileAllowsDepartmentAccess(profileRow, profileRole, ticketPayloadDepartment(r.payload))
     );
   }
-  res.json(rows.map(diaTicketRowToAppTicket));
+  res.json(rows.map((r) => sanitizeTicketPayloadForRole(diaTicketRowToAppTicket(r), profileRole)));
 });
 
 app.post("/api/tickets-rls", async (req, res) => {
@@ -1202,6 +1265,14 @@ app.post("/api/tickets-rls", async (req, res) => {
     return res.status(wfErr.error === "status_forbidden" || wfErr.error === "department_change_forbidden" ? 403 : 400).json({
       error: wfErr.error,
       detail: wfErr.detail || "",
+    });
+  }
+
+  const cErr = appendTicketCommentsFromBody(merged, body, profileRole, tctx);
+  if (cErr) {
+    return res.status(cErr.error === "comment_forbidden" ? 403 : 400).json({
+      error: cErr.error,
+      detail: cErr.detail || "",
     });
   }
 
